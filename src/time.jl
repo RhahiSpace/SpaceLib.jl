@@ -14,19 +14,25 @@ subscribed to the time server, providing a caching layer to minimize streaming
 overhad with KRPC.
 
 # Fields
+
 - `time`: The universal time in seconds.
 - `clients`: The clients that are subscribed to the time server.
-    The first client is a controller.
+The first client is a controller.
+- `type`: type of the clock. (UT, MET, and Offline)
 """
 mutable struct Timeserver
     time::Float64
     clients::Vector{Channel{Float64}}
-    function Timeserver(stream::Union{Channel{Tuple{Float64}}, KRPC.Listener})
+    type::String
+    function Timeserver(stream::Union{Channel{Tuple{Float64}},KRPC.Listener}, type::String)
         signal = Channel{Float64}(1)
         clients = Vector{Channel{Float64}}()
         push!(clients, signal)
-        ts = new(-1, clients)
+        ts = new(-1, clients, type)
         start_time_server!(ts, stream)
+        # this should resolve immeidately after time server starts because
+        # time should always be above 0 or higher, and server starts with -1.
+        delay(ts, 0.1)
         ts
     end
 end
@@ -38,11 +44,12 @@ end
 Start a timeserver using KRPC's universal time.
 
 # Arguments
+
 - `conn`: A KRPCConnection object.
 """
 function Timeserver(conn::KRPC.KRPCConnection)
     stream = KRPC.add_stream(conn, (SC.get_UT(),))
-    Timeserver(stream)
+    Timeserver(stream, "UT")
 end
 
 """
@@ -51,18 +58,20 @@ end
 Start timeserver using the Vessel's mission elapsed time."
 
 # Arguments
+
 - `conn`: A KRPCConnection object.
 - `ves`: A Vessel object.
 """
 function Timeserver(conn::KRPC.KRPCConnection, ves::SCR.Vessel)
     stream = KRPC.add_stream(conn, (SC.Vessel_get_MET(ves),))
-    Timeserver(stream)
+    Timeserver(stream, "MET")
 end
 
 """
     Timeserver()
 
-Start a local time server for off-line testing."""
+Start a local time server for off-line testing.
+"""
 function Timeserver()
     clock = Channel{Tuple{Float64}}()
     @async begin
@@ -75,7 +84,7 @@ function Timeserver()
             close(clock)
         end
     end
-    Timeserver(clock)
+    Timeserver(clock, "Offline")
 end
 
 """
@@ -220,12 +229,14 @@ end
 Wait for in-game seconds to pass.
 
 # Arguments
-- `ts`: A Timeserver object.
-- `seconds`: The delay in seconds.
-- `name`: An optional name for the progress bar.
-- `parentid`: An optional parent ID for the progress bar.
+
+  - `ts`: A Timeserver object.
+  - `seconds`: The delay in seconds.
+  - `name`: An optional name for the progress bar.
+  - `parentid`: An optional parent ID for the progress bar.
 """
-function delay(ts::Timeserver, seconds::Real, name="";
+function delay(
+    ts::Timeserver, seconds::Real, name::Union{Nothing, String}=nothing;
     parentid=ProgressLogging.ROOTID
 )
     @debug "delay $seconds" _group=:time
@@ -234,12 +245,13 @@ function delay(ts::Timeserver, seconds::Real, name="";
     end
     t₀ = ts.time
     t₁ = t₀
-    @withprogress name=name parentid=parentid begin
+    progress = !isnothing(name)
+    function _delay()
         try
             subscribe(ts) do clock
                 for now in clock
                     t₁ = now
-                    @logprogress name min(1, (now-t₀) / seconds)
+                    progress && @logprogress name min(1, (now - t₀) / seconds)
                     (now - t₀) ≥ (seconds - TIME_RESOLUTION) && break
                     yield()
                 end
@@ -251,9 +263,12 @@ function delay(ts::Timeserver, seconds::Real, name="";
             else
                 error(e)
             end
-        finally
-            @logprogress name "done"
         end
+    end
+    if progress
+        @withprogress name=name parentid=parentid _delay()
+    else
+        _delay()
     end
     return t₀, t₁
 end
