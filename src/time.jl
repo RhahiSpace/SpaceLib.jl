@@ -191,7 +191,7 @@ Useful for polling data periodically.
 function periodic_subscribe(ts::Timeserver, period::Real)
     coarse_clock = Channel{Float64}(1)
     fine_clock = subscribe(ts)
-    last_update = 0.
+    last_update = 0.0
     @async begin
         try
             for now in fine_clock
