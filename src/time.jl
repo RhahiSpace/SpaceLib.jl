@@ -93,7 +93,10 @@ end
 Start a time server by fetching updated timestamps from the given stream and
 publishing them to clients.
 """
-function start_time_server!(ts::Timeserver, stream::Union{Channel{Tuple{Float64}}, KRPC.Listener})
+function start_time_server!(
+    ts::Timeserver,
+    stream::Union{Channel{Tuple{Float64}},KRPC.Listener},
+)
     @async begin
         try
             running = true
