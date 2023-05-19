@@ -6,10 +6,11 @@ version = "1.0.0-DEV"
 [deps]
 ErrorTypes = "7f495686-c6d2-4c77-9e8e-e4c865675f9d"
 KRPC = "7a052949-c101-4ca3-9a7e-43a2532b2fa8"
+MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 ProgressLogging = "33c8b6b6-d38a-422a-b730-caa89a2f386c"
 
 [compat]
-julia = "1.8"
+julia = "1.8 - 1.9"
 
 [extras]
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"

@@ -239,7 +239,7 @@ Wait for in-game seconds to pass.
   - `parentid`: An optional parent ID for the progress bar.
 """
 function delay(
-    ts::Timeserver, seconds::Real, name::Union{Nothing, String}=nothing;
+    ts::Timeserver, seconds::Real, name::Union{Nothing,String}=nothing;
     parentid=ProgressLogging.ROOTID
 )
     @debug "delay $seconds" _group=:time
@@ -248,13 +248,12 @@ function delay(
     end
     t₀ = ts.time
     t₁ = t₀
-    progress = !isnothing(name)
-    function _delay()
+    @optionalprogress name parentid begin
         try
             subscribe(ts) do clock
                 for now in clock
                     t₁ = now
-                    progress && @logprogress name min(1, (now - t₀) / seconds)
+                    !isnothing(name) && @logprogress name min(1, (now - t₀) / seconds)
                     (now - t₀) ≥ (seconds - TIME_RESOLUTION) && break
                     yield()
                 end
@@ -267,11 +266,6 @@ function delay(
                 error(e)
             end
         end
-    end
-    if progress
-        @withprogress name=name parentid=parentid _delay()
-    else
-        _delay()
     end
     return t₀, t₁
 end
