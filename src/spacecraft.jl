@@ -108,8 +108,8 @@ function Base.show(io::IO, con::SubControl)
     print(io, "SubControl $(con.name) ($state, $toggle)")
 end
 
-disable(con::SubControl) = con.toggle.switch = false
-enable(con::SubControl) = push!(con.cmd, con.id | 0x40000000)
+disable(con::SubControl) = con.toggle.active = false
+enable(con::SubControl) = con.toggle.active = true
 function enable(f::Function, con::SubControl)
     enable(con)
     try
