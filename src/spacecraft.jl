@@ -118,43 +118,31 @@ end
 
 Manages a set of SubControls and connects to hardware ControlChannel.
 
-# Command bits
-- Bit 0-29: Channel bit
-- Bit 30-31: command bit
-    - 00: Disable    (0x00000000)
-    - 01: Enable     (0x40000000)
-    - 10: Restore    (0x80000000)
-    - 11: Prioritize (0xC0000000)
-
-# Mask bits
-- Bit 0-29: Channel enabled bit
-- Bit 30-31: Unused (garbage bit)
+This control itself does not do anything but transfer data.
+Hardware control loop should be started in the Spacecraft's side for it to work.
 
 # Fields
-- `users`: A vector of SubControls.
-- `cmd`: Receives commands for toggling specific channels.
-- `chan`: Hardware ControlChannel
-- `enable_mask`: Binary mask for enabled/disabled channels.
-- `proirity_mask`: Binary mask for prioritized channels. Respects disable bit.
-- `cycle`: Condition for notifying cycle completion of control loop.
+- `users`: A list of SubControls.
+- `src`: Collectionpoint for SubControls. Ignored when `toggle` is off.
+- `sink`: Hardware ControlChannel. Direct access to this channel always works.
 - `active`: A stop switch for cutting off all SubControls, regardless of mask.
 """
-mutable struct MasterControl
+struct MasterControl
     users::Vector{SubControl}
-    cmd::Channel{UInt32}
-    chan::ControlChannel
-    enable_mask::UInt32
-    priority_mask::UInt32
-    cycle::Condition
-    active::Bool
+    src::ControlChannel
+    sink::ControlChannel
+    toggle::Toggle
     function MasterControl()
         users = Vector{AbstractControl}()
-        cmd = Channel{UInt32}(1)
-        chan = ControlChannel(1)
-        cycle = Condition()
-        mc = new(users, cmd, chan, 0x0, 0x0, cycle, true)
-        (@async master_control_loop(mc)) |> errormonitor
-        mc
+        src = ControlChannel(1)
+        sink = ControlChannel(1)
+        toggle = MutableToggle(true)
+        @async _transfer(src.engage, sink.engage, toggle, "master/engage")
+        @async _transfer(src.throttle, sink.throttle, toggle, "master/throttle")
+        @async _transfer(src.roll, sink.roll, toggle, "master/roll")
+        @async _transfer(src.direction, sink.direction, toggle, "master/direction")
+        @async _transfer(src.rcs, sink.rcs, toggle, "master/rcs")
+        return new(users, src, sink, toggle)
     end
 end
 
@@ -162,113 +150,50 @@ function Base.close(mc::MasterControl)
     for con ∈ mc.users
         close(con)
     end
-    close(mc.cmd)
-    close(mc.chan)
+    close(mc.src)
+    close(mc.sink)
 end
 
-"""
-    master_control_loop(mc::MasterControl)
-
-Start cycling through each subcontrol, handling data transfer and removal of
-closed users. if the control is enabled and master control loop is in active
-state.
-"""
-function master_control_loop(mc::MasterControl)
-    @info "Master control loop started" _group=:rawcon
+function _transfer(
+    from::Channel{T},
+    to::Channel{T},
+    toggle::Toggle=MutableToggle(true),
+    name::String="untitled"
+)
     try
-        while isopen(mc.chan)
-            _mcl_command(mc)
-            remove = nothing
-            mask = mc.priority_mask & mc.enable_mask
-            if mask == 0
-                # no prioritized channel is enabled, fall back to enabled channels
-                mask = mc.enable_mask
-            end
-            for (idx, u) ∈ enumerate(mc.users)
-                # if engage channel is closed, the user is unsubscribed.
-                if !isopen(u)
-                    remove = idx
-                    continue
-                end
-                # mc.active is checked more frequenctly for faster response
-                !mc.active && continue
-                if u.id & mask > 0
-                    _mcl_transfer(mc, u)
-                else
-                    _mcl_discard(u)
-                end
-            end
-            # remove closed user (once per cycle)
-            if !isnothing(remove)
-                close(mc.users[remove])
-                popat!(mc.users, remove)
-            end
-            # notify that a cycle of master control loop has been finished. this
-            # is useful when the user does not want any data to be discarded, so
-            # it can enable, wait until this signal and then start broadcasting.
-            notify(mc.cycle)
+        @debug "Transfer channel ($name) started" _group=:rawcon
+        while true
+            value = take!(from)
+            toggle.active && put!(to, value)
             yield()
         end
     finally
-        @info "Master control loop closed" _group=:rawcon
+        @debug "Transfer channel ($name) closed" _group=:rawcon
     end
-end
-
-function _mcl_command(mc::MasterControl)
-    !isready(mc.cmd) && return
-    cmd = take!(mc.cmd)
-    @info "command" cmd
-    cmd & 0xC0000000 == 0xC0000000 && return (mc.priority_mask |= cmd)
-    cmd & 0x80000000 > 0 && return (mc.priority_mask &= ~cmd)
-    cmd & 0x40000000 > 0 && return (mc.enable_mask |= cmd)
-    return (mc.enable_mask &= ~cmd)
-end
-
-function _mcl_transfer(mc::MasterControl, u::SubControl)
-    # transfer incoming data into immediate controller
-    isready(u.engage)    && put!(mc.chan.engage,    take!(u.engage))
-    isready(u.throttle)  && put!(mc.chan.throttle,  take!(u.throttle))
-    isready(u.roll)      && put!(mc.chan.roll,      take!(u.roll))
-    isready(u.direction) && put!(mc.chan.direction, take!(u.direction))
-    isready(u.rcs)       && put!(mc.chan.rcs,       take!(u.rcs))
-end
-
-function _mcl_discard(u::SubControl)
-    # when control is locked or mask is inactive, discard all values.
-    isready(u.engage)    && take!(u.engage)
-    isready(u.throttle)  && take!(u.throttle)
-    isready(u.roll)      && take!(u.roll)
-    isready(u.direction) && take!(u.direction)
-    isready(u.rcs)       && take!(u.rcs)
 end
 
 function Base.show(io::IO, mc::MasterControl)
     status = Base.isopen(mc) ? "open" : "closed"
-    active = mc.active ? "active" : "inactive"
-    print(
-        io,
-        "Master Control ($status, $active) with $(length(mc.users)) users\n",
-        "- Enabled:     0b$(Base.bin(mc.enable_mask, 32, false)) = $(mc.enable_mask)\n",
-        "- Prioritized: 0b$(Base.bin(mc.priority_mask, 32, false)) = $(mc.priority_mask)\n",
-    )
+    active = mc.toggle.active ? "active" : "inactive"
+    print(io, "Master Control ($status, $active) with $(length(mc.users)) users")
 end
 
-Base.isopen(mc::MasterControl) = Base.isopen(mc.cmd)
-Base.isopen(ctrl::SubControl) = Base.isopen(ctrl.engage)
-Base.isopen(ctrl::ControlChannel) = Base.isopen(ctrl.engage)
+Base.isopen(mc::MasterControl) = Base.isopen(mc.sink)
+Base.isopen(con::SubControl) = Base.isopen(con.engage)
+Base.isopen(con::ControlChannel) = Base.isopen(con.engage)
 
 """
-    subcontrol(m::MasterControl, num::Int, size::Integer=1)
+    subcontrol(mc, name, [size])
 
 Create a new subcontrol unit, register it to the master control loop. The
 SubControl is initialized as enabled.
 """
-function subcontrol(m::MasterControl, num::Integer, size::Integer=1)
-    con = SubControl(num, m.cmd, m.cycle, size)
-    push!(m.users, con)
-    enable(con)
-    return con
+function subcontrol(mc::MasterControl, name::String="untitled", size::Integer=1)
+    con = SubControl(name, mc.src, MutableToggle(true), size)
+    push!(mc.users, con)
+    con
 end
+subcontrol(sp::Spacecraft, name::String="untitled", size::Integer=1) = subcontrol(sp.control, name, size)
 
 """
     Spacecraft
