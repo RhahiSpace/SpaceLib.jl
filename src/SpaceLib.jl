@@ -35,6 +35,6 @@ include("spacecenter.jl")
 # include("PartModule/PartModule.jl")
 # include("actuator.jl")
 include("frame.jl")
-# include("develop.jl")
+include("develop.jl")
 
 end # module
