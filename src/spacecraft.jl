@@ -93,7 +93,7 @@ function Base.show(io::IO, con::SubControl)
     else
         name = "Subcontrol 0b$(Base.bin(con.id, 30, false))"
     end
-    isopen(con.cmd) ? print(io, "$name (open)") : print(io, "$name (closed)")
+    isopen(con) ? print(io, "$name (open)") : print(io, "$name (closed)")
 end
 
 function disable(ctrl::SubControl)
@@ -180,6 +180,7 @@ function Base.close(mc::MasterControl)
     for con ∈ mc.users
         close(con)
     end
+    close(mc.cmd)
     close(mc.chan)
 end
 
@@ -193,7 +194,7 @@ state.
 function master_control_loop(mc::MasterControl)
     @info "Master control loop started" _group=:rawcon
     try
-        while isopen(mc.chan.engage)
+        while isopen(mc.chan)
             _mcl_command(mc)
             remove = nothing
             mask = mc.priority_mask & mc.enable_mask
@@ -203,7 +204,7 @@ function master_control_loop(mc::MasterControl)
             end
             for (idx, u) ∈ enumerate(mc.users)
                 # if engage channel is closed, the user is unsubscribed.
-                if !isopen(u.engage)
+                if !isopen(u)
                     remove = idx
                     continue
                 end
@@ -260,7 +261,7 @@ function _mcl_discard(u::SubControl)
 end
 
 function Base.show(io::IO, mc::MasterControl)
-    status = isopen(mc.chan.engage) ? "open" : "closed"
+    status = Base.isopen(mc) ? "open" : "closed"
     active = mc.active ? "active" : "inactive"
     print(
         io,
@@ -270,6 +271,9 @@ function Base.show(io::IO, mc::MasterControl)
     )
 end
 
+Base.isopen(mc::MasterControl) = Base.isopen(mc.cmd)
+Base.isopen(ctrl::SubControl) = Base.isopen(ctrl.engage)
+Base.isopen(ctrl::ControlChannel) = Base.isopen(ctrl.engage)
 
 """
     subcontrol(m::MasterControl, num::Int, size::Integer=1)
@@ -360,10 +364,12 @@ function Base.show(io::IO, sp::Spacecraft)
     end
     print(
         io,
-        "$name ($(sp.ts.time)) $(format_MET(sp.met.time))\n",
-        "$(length(sp.parts)) parts: [$(join(keys(sp.parts), ','))]"
+        "$name ($(isopen(sp))) $(format_MET(sp.met.time))\n",
+        "$(length(sp.parts)) registered parts: [$(join(keys(sp.parts), ','))]"
     )
 end
+
+Base.isopen(sp::Spacecraft) = Base.isopen(sp.met.clients[1])
 
 """
     hardware_control_loop(sp::Spacecraft, m::MasterControl)
@@ -397,7 +403,7 @@ function hardware_control_loop(sp::Spacecraft, m::MasterControl)
 
     @info "Hardware control loop started" _group=:rawcon
     try
-        while isopen(m.chan.engage)
+        while isopen(m.chan)
             isready(m.chan.engage)    && take!(m.chan.engage)    |> _engage
             isready(m.chan.throttle)  && take!(m.chan.throttle)  |> _throttle
             isready(m.chan.roll)      && take!(m.chan.roll)      |> SCH.Roll!
