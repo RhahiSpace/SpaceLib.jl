@@ -148,17 +148,18 @@ Manages a set of SubControls and connects to hardware ControlChannel.
 """
 mutable struct MasterControl
     users::Vector{SubControl}
-    cmd::Channel{Command}
+    cmd::Channel{UInt32}
     chan::ControlChannel
-    mask::UInt32  # 1 = enabled, 0 = disabled
+    enable_mask::UInt32
+    priority_mask::UInt32
     cycle::Condition
     active::Bool
     function MasterControl()
         users = Vector{AbstractControl}()
-        cmd = Channel{Command}(1)
+        cmd = Channel{UInt32}(1)
         chan = ControlChannel(1)
         cycle = Condition()
-        mc = new(users, cmd, chan, 0x0, cycle, false)
+        mc = new(users, cmd, chan, 0x0, 0x0, cycle, true)
         (@async master_control_loop(mc)) |> errormonitor
         mc
     end
@@ -179,30 +180,28 @@ closed users. if the control is enabled and master control loop is in active
 state.
 """
 function master_control_loop(mc::MasterControl)
-    @info "Master control loop started" _group=:system
+    @info "Master control loop started" _group=:rawcon
     try
         while isopen(mc.chan.engage)
+            _mcl_command(mc)
             remove = nothing
+            mask = mc.priority_mask & mc.enable_mask
+            if mask == 0
+                # no prioritized channel is enabled, fall back to enabled channels
+                mask = mc.enable_mask
+            end
             for (idx, u) ∈ enumerate(mc.users)
                 # if engage channel is closed, the user is unsubscribed.
-                if !isopen(u.chan.engage)
+                if !isopen(u.engage)
                     remove = idx
                     continue
                 end
-                if mc.active || u.id & mc.mask == 0
-                    # when control is locked or mask is inactive, discard all values.
-                    isready(u.chan.engage)    && take!(u.chan.engage)
-                    isready(u.chan.throttle)  && take!(u.chan.throttle)
-                    isready(u.chan.roll)      && take!(u.chan.roll)
-                    isready(u.chan.direction) && take!(u.chan.direction)
-                    isready(u.chan.rcs)       && take!(u.chan.rcs)
+                # mc.active is checked more frequenctly for faster response
+                !mc.active && continue
+                if u.id & mask > 0
+                    _mcl_transfer(mc, u)
                 else
-                    # transfer incoming data into immediate controller
-                    isready(u.chan.engage)    && put!(mc.con.engage,    take!(u.chan.engage))
-                    isready(u.chan.throttle)  && put!(mc.con.throttle,  take!(u.chan.throttle))
-                    isready(u.chan.roll)      && put!(mc.con.roll,      take!(u.chan.roll))
-                    isready(u.chan.direction) && put!(mc.con.direction, take!(u.chan.direction))
-                    isready(u.chan.rcs)       && put!(mc.con.rcs,       take!(u.chan.rcs))
+                    _mcl_discard(u)
                 end
             end
             # remove closed user (once per cycle)
@@ -210,15 +209,43 @@ function master_control_loop(mc::MasterControl)
                 close(mc.users[remove])
                 popat!(mc.users, remove)
             end
-            # notify that a cycle of master control loop has been finished.
-            # this is useful when the user does not want any data to be discarded,
-            # so it can enable, wait until this signal and then start broadcasting.
+            # notify that a cycle of master control loop has been finished. this
+            # is useful when the user does not want any data to be discarded, so
+            # it can enable, wait until this signal and then start broadcasting.
             notify(mc.cycle)
             yield()
         end
     finally
-        @info "Master control loop closed" _group=:system
+        @info "Master control loop closed" _group=:rawcon
     end
+end
+
+function _mcl_command(mc::MasterControl)
+    !isready(mc.cmd) && return
+    cmd = take!(mc.cmd)
+    @info "command" cmd
+    cmd & 0xC0000000 == 0xC0000000 && return (mc.priority_mask |= cmd)
+    cmd & 0x80000000 > 0 && return (mc.priority_mask &= ~cmd)
+    cmd & 0x40000000 > 0 && return (mc.enable_mask |= cmd)
+    return (mc.enable_mask &= ~cmd)
+end
+
+function _mcl_transfer(mc::MasterControl, u::SubControl)
+    # transfer incoming data into immediate controller
+    isready(u.engage)    && put!(mc.chan.engage,    take!(u.engage))
+    isready(u.throttle)  && put!(mc.chan.throttle,  take!(u.throttle))
+    isready(u.roll)      && put!(mc.chan.roll,      take!(u.roll))
+    isready(u.direction) && put!(mc.chan.direction, take!(u.direction))
+    isready(u.rcs)       && put!(mc.chan.rcs,       take!(u.rcs))
+end
+
+function _mcl_discard(u::SubControl)
+    # when control is locked or mask is inactive, discard all values.
+    isready(u.engage)    && take!(u.engage)
+    isready(u.throttle)  && take!(u.throttle)
+    isready(u.roll)      && take!(u.roll)
+    isready(u.direction) && take!(u.direction)
+    isready(u.rcs)       && take!(u.rcs)
 end
 
 function Base.show(io::IO, mc::MasterControl)
@@ -227,7 +254,8 @@ function Base.show(io::IO, mc::MasterControl)
     print(
         io,
         "Master Control ($status, $active) with $(length(mc.users)) users\n",
-        "Mask: 0b$(Base.bin(mc.mask, 64, false)) = $(mc.mask)"
+        "- Enabled:     0b$(Base.bin(mc.enable_mask, 32, false)) = $(mc.enable_mask)\n",
+        "- Prioritized: 0b$(Base.bin(mc.priority_mask, 32, false)) = $(mc.priority_mask)\n",
     )
 end
 
