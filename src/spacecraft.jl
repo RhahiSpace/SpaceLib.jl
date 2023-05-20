@@ -190,38 +190,6 @@ function subcontrol(m::MasterControl, num::Int, size::Integer=1)
 end
 
 """
-    hardware_control_loop(sp::Spacecraft, m::MasterControl)
-
-Control loop that delivers control input into hardware.
-"""
-function hardware_control_loop(sp::Spacecraft, m::MasterControl)
-    ctrl = SCH.Control(sp.ves)
-    ap = SCH.AutoPilot(sp.ves)
-
-    function _direction(cmd::NTuple{3,Float64})
-        # if norm(cmd) == 0 && return
-        cmd == (0f0, 0f0, 0f0) && return
-        SCH.TargetDirection!(ap, cmd)
-    end
-
-    function _rcs(cmd::NTuple{3,Union{Missing,Float32}})
-        fore, up, right = cmd
-        !ismissing(fore) && SCH.Forward!(ctrl, fore)
-        !ismissing(up) && SCH.Up!(ctrl, up)
-        !ismissing(right) && SCH.Right!(ctrl, right)
-    end
-
-    while isopen(m.chan.engage)
-        isready(m.chan.engage) && take!(u.chan.engage) ? SCH.Engage(ap) : SCH.Disengage(sp)
-        isready(m.chan.throttle) && take!(u.chan.throttle) |> SCH.Throttle!
-        isready(m.chan.roll) && take!(u.chan.roll) |> SCH.Roll!
-        isready(m.chan.direction) && take!(u.chan.direction) |> _direction
-        isready(m.chan.rcs) && take!(u.chan.rcs) |> _rcs
-        yield()
-    end
-end
-
-"""
     Spacecraft
 
 Structure representing a spacecraft to be controlled.
@@ -296,6 +264,38 @@ function Base.show(io::IO, sp::Spacecraft)
         "$name ($(sp.ts.time)) $(format_MET(sp.met.time))\n",
         "$(length(sp.parts)) parts: [$(join(keys(sp.parts), ','))]"
     )
+end
+
+"""
+    hardware_control_loop(sp::Spacecraft, m::MasterControl)
+
+Control loop that delivers control input into hardware.
+"""
+function hardware_control_loop(sp::Spacecraft, m::MasterControl)
+    ctrl = SCH.Control(sp.ves)
+    ap = SCH.AutoPilot(sp.ves)
+
+    function _direction(cmd::NTuple{3,Float64})
+        # if norm(cmd) == 0 && return
+        cmd == (0f0, 0f0, 0f0) && return
+        SCH.TargetDirection!(ap, cmd)
+    end
+
+    function _rcs(cmd::NTuple{3,Union{Missing,Float32}})
+        fore, up, right = cmd
+        !ismissing(fore) && SCH.Forward!(ctrl, fore)
+        !ismissing(up) && SCH.Up!(ctrl, up)
+        !ismissing(right) && SCH.Right!(ctrl, right)
+    end
+
+    while isopen(m.chan.engage)
+        isready(m.chan.engage) && take!(u.chan.engage) ? SCH.Engage(ap) : SCH.Disengage(sp)
+        isready(m.chan.throttle) && take!(u.chan.throttle) |> SCH.Throttle!
+        isready(m.chan.roll) && take!(u.chan.roll) |> SCH.Roll!
+        isready(m.chan.direction) && take!(u.chan.direction) |> _direction
+        isready(m.chan.rcs) && take!(u.chan.rcs) |> _rcs
+        yield()
+    end
 end
 
 """
