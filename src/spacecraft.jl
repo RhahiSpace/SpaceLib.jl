@@ -43,7 +43,7 @@ function create_control_channels(size::Integer=1)
     r = Channel{Float32}(size)
     d = Channel{NTuple{3,Float64}}(size)
     rcs = Channel{NTuple{3,Union{Missing,Float32}}}(size)
-    return (e,t, r, d, rcs)
+    return (e, t, r, d, rcs)
 end
 
 """
