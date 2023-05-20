@@ -69,7 +69,7 @@ A wrapper around a control channel with the capability to be turned on and off.
 struct SubControl <: AbstractControl
     name::String
     sink::ControlChannel
-    toggle::Toggle
+    toggle::MutableToggle
 
     engage::Channel{Bool}
     throttle::Channel{Float32}
@@ -79,7 +79,7 @@ struct SubControl <: AbstractControl
     function SubControl(
         name::String,
         sink::ControlChannel,
-        toggle::Toggle=MutableToggle(true),
+        toggle=MutableToggle(true),
         size::Integer=1
     )
         @info "Creating subcontrol $name" _group=:rawcon
@@ -89,7 +89,7 @@ struct SubControl <: AbstractControl
         @async _transfer(con.roll, sink.roll, toggle, "$name/roll")
         @async _transfer(con.direction, sink.direction, toggle, "$name/direction")
         @async _transfer(con.rcs, sink.rcs, toggle, "$name/rcs")
-        return
+        return con
     end
 end
 
@@ -137,7 +137,7 @@ struct MasterControl
     users::Vector{SubControl}
     src::ControlChannel
     sink::ControlChannel
-    toggle::Toggle
+    toggle::MutableToggle
     function MasterControl()
         users = Vector{AbstractControl}()
         src = ControlChannel(1)
