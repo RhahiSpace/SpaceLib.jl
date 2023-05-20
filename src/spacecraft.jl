@@ -189,19 +189,6 @@ Base.isopen(con::SubControl) = Base.isopen(con.engage)
 Base.isopen(con::ControlChannel) = Base.isopen(con.engage)
 
 """
-    subcontrol(mc, name, [size])
-
-Create a new subcontrol unit, register it to the master control loop. The
-SubControl is initialized as enabled.
-"""
-function subcontrol(mc::MasterControl, name::String="untitled", size::Integer=1)
-    con = SubControl(name, mc.src, MutableToggle(true), size)
-    push!(mc.users, con)
-    con
-end
-subcontrol(sp::Spacecraft, name::String="untitled", size::Integer=1) = subcontrol(sp.control, name, size)
-
-"""
     Spacecraft
 
 Structure representing a spacecraft to be controlled.
@@ -263,6 +250,20 @@ function Spacecraft(
     @async _hardware_transfer_rcs(sp)
     return sp
 end
+
+"""
+    subcontrol(mc, name, [size])
+
+Create a new subcontrol unit, register it to the master control loop. The
+SubControl is initialized as enabled.
+"""
+function subcontrol(mc::MasterControl, name::String="untitled", size::Integer=1)
+    con = SubControl(name, mc.src, MutableToggle(true), size)
+    push!(mc.users, con)
+    con
+end
+subcontrol(sp::Spacecraft, name::String="untitled", size::Integer=1) = subcontrol(sp.control, name, size)
+
 
 """
 Close the spacecraft and active associated active loops.
