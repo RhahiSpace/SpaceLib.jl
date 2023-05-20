@@ -108,9 +108,9 @@ function Base.show(io::IO, con::SubControl)
     print(io, "SubControl $(con.name) ($state, $toggle)")
 end
 
-disable(con::SubControl) = con.toggle.active = false
-enable(con::SubControl) = con.toggle.active = true
-function enable(f::Function, con::SubControl)
+disable(con::Union{MasterControl,SubControl}) = con.toggle.active = false
+enable(con::Union{MasterControl,SubControl}) = con.toggle.active = true
+function enable(f::Function, con::Union{MasterControl,SubControl})
     enable(con)
     try
         f()
