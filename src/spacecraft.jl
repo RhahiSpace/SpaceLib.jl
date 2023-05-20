@@ -165,7 +165,7 @@ function _transfer(
     to::Channel{T},
     toggle::Toggle=MutableToggle(true),
     name::String="untitled"
-)
+) where {T}
     try
         @debug "Transfer channel ($name) started" _group=:rawcon
         while true
