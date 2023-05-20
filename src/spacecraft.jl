@@ -376,6 +376,14 @@ function hardware_control_loop(sp::Spacecraft, m::MasterControl)
     ctrl = SCH.Control(sp.ves)
     ap = SCH.AutoPilot(sp.ves)
 
+    function _engage(cmd::Bool)
+        cmd ? SCH.Engage(ap) : SCH.Disengage(ap)
+    end
+
+    function _throttle(cmd::Float32)
+        SCH.Throttle!(ctrl, clamp(cmd, 0f0, 1f0))
+    end
+
     function _direction(cmd::NTuple{3,Float64})
         # if norm(cmd) == 0 && return
         cmd == (0f0, 0f0, 0f0) && return
@@ -384,18 +392,23 @@ function hardware_control_loop(sp::Spacecraft, m::MasterControl)
 
     function _rcs(cmd::NTuple{3,Union{Missing,Float32}})
         fore, up, right = cmd
-        !ismissing(fore) && SCH.Forward!(ctrl, fore)
-        !ismissing(up) && SCH.Up!(ctrl, up)
+        !ismissing(fore)  && SCH.Forward!(ctrl, fore)
+        !ismissing(up)    && SCH.Up!(ctrl, up)
         !ismissing(right) && SCH.Right!(ctrl, right)
     end
 
-    while isopen(m.chan.engage)
-        isready(m.chan.engage) && take!(u.chan.engage) ? SCH.Engage(ap) : SCH.Disengage(sp)
-        isready(m.chan.throttle) && take!(u.chan.throttle) |> SCH.Throttle!
-        isready(m.chan.roll) && take!(u.chan.roll) |> SCH.Roll!
-        isready(m.chan.direction) && take!(u.chan.direction) |> _direction
-        isready(m.chan.rcs) && take!(u.chan.rcs) |> _rcs
-        yield()
+    @info "Hardware control loop started" _group=:rawcon
+    try
+        while isopen(m.chan.engage)
+            isready(m.chan.engage)    && take!(m.chan.engage)    |> _engage
+            isready(m.chan.throttle)  && take!(m.chan.throttle)  |> _throttle
+            isready(m.chan.roll)      && take!(m.chan.roll)      |> SCH.Roll!
+            isready(m.chan.direction) && take!(m.chan.direction) |> _direction
+            isready(m.chan.rcs)       && take!(m.chan.rcs)       |> _rcs
+            yield()
+        end
+    finally
+        @info "Hardware control loop ended" _group=:rawcon
     end
 end
 
