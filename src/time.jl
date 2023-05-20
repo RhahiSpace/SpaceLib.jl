@@ -239,11 +239,11 @@ Wait for in-game seconds to pass.
   - `parentid`: An optional parent ID for the progress bar.
 """
 function delay(
-    ts::Timeserver, seconds::Real, name::Union{Nothing,String}=nothing;
+    ts::Timeserver, seconds::Real=TIME_RESOLUTION*2, name::Union{Nothing,String}=nothing;
     parentid=ProgressLogging.ROOTID
 )
     @debug "delay $seconds" _group=:time
-    if seconds < 0.02
+    if seconds < TIME_RESOLUTION*2
         @warn "Time delay is too short (should be 0.02 seconds or longer)" _group=:time
     end
     t₀ = ts.time
