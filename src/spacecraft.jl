@@ -98,6 +98,40 @@ function Base.show(io::IO, con::SubControl)
     isopen(con.cmd) ? print(io, "$name (open)") : print(io, "$name (closed)")
 end
 
+function disable(ctrl::SubControl)
+    @debug "Control channel $(ctrl.id) disable requsted" _group=:rawcon
+    push!(ctrl.cmd, ctrl.id)
+end
+function enable(ctrl::SubControl)
+    @debug "Control channel $(ctrl.id) enable requsted" _group=:rawcon
+    push!(ctrl.cmd, ctrl.id | 0x40000000)
+end
+function enable(f::Function, ctrl::SubControl)
+    enable(ctrl)
+    try
+        wait(ctrl.cycle)
+        f()
+    finally
+        disable(ctrl)
+    end
+end
+function prioritze(ctrl::SubControl)
+    @debug "Control channel $(ctrl.id) prioritze requsted" _group=:rawcon
+    push!(ctrl.cmd, ctrl.id | 0x80000000)
+end
+function restore(ctrl::SubControl)
+    @debug "Control channel $(ctrl.id) restore requsted" _group=:rawcon
+    push!(ctrl.cmd, ctrl.id | 0xC0000000)
+end
+function prioritze(f::Function, ctrl::SubControl)
+    prioritze(ctrl)
+    try
+        wait(ctrl.cycle)
+        f()
+    finally
+        resetore(ctrl)
+    end
+end
 
 """
     MasterControl()
