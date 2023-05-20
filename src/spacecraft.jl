@@ -35,6 +35,15 @@ function Base.close(con::ControlChannel)
     close(con.rcs)
 end
 
+function create_control_channels(size::Integer=1)
+    e = Channel{Bool}(size)
+    t = Channel{Float32}(size)
+    r = Channel{Float32}(size)
+    d = Channel{NTuple{3,Float64}}(size)
+    rcs = Channel{NTuple{3,Union{Missing,Float32}}}(size)
+    return (e,t, r, d, rcs)
+end
+
 """
     SubControl(id, cmd, [size])
 
@@ -42,8 +51,9 @@ A wrapper around a control channel with the capability to be turned on and off.
 
 # Fields
 - `id`: Binary encoded identifier for the SubControl.
-- `cmd`: Command channel to master to signal turn itself on or off.
-- `chan`: Control channel.
+- `cmd`: Command channel to master to signal turn channels on or off.
+- `cycle`: notified whenever master control loop finishes a cycle.
+- `...`: identical to ControlChannel channels
 
 # Extra arguments
 - `size`: Buffer size for the channel. 1 is recommended.
@@ -51,22 +61,32 @@ A wrapper around a control channel with the capability to be turned on and off.
 """
 struct SubControl <: AbstractControl
     id::UInt32
-    cmd::Channel{Command}
-    chan::ControlChannel
-    function SubControl(id::UInt, cmd::Channel{Command}, size::Integer)
-        if id > 2^30 || id < 0
+    cmd::Channel{UInt32}
+    cycle::Condition
+
+    engage::Channel{Bool}
+    throttle::Channel{Float32}
+    roll::Channel{Float32}
+    direction::Channel{NTuple{3,Float64}}
+    rcs::Channel{NTuple{3,Union{Missing,Float32}}}
+    function SubControl(id::Unsigned, cmd::Channel{UInt32}, cycle::Condition, size::Integer)
+        @info "Creating subcontrol" _group=:rawcon
+        if id >= 0x40000000
             error("Invalid control channel")
         end
-        chan = ControlChannel(size)
-        new(id, cmd, chan)
+        new(id, cmd, cycle, create_control_channels(size)...)
     end
 end
 
-SubControl(num::Int, cmd::Channel{Command}, size::Integer=1) = SubControl(convert(UInt32, 2^num), cmd, size)
+SubControl(num::Integer, cmd::Channel{UInt32}, cycle::Condition, size::Integer=1) = SubControl(convert(UInt32, 2^num), cmd, cycle, size)
 
-function Base.close(con::SubControl)
-    close(con.chan)
-    close(con.cmd)
+function Base.close(ctrl::SubControl)
+    @info "Closing subcontrol $(ctrl.id)" _group=:rawcon
+    close(ctrl.engage)
+    close(ctrl.throttle)
+    close(ctrl.roll)
+    close(ctrl.direction)
+    close(ctrl.rcs)
 end
 
 function Base.show(io::IO, con::SubControl)
