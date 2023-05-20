@@ -1,6 +1,12 @@
 abstract type Toggle end
-mutable struct MutableToggle active::Bool end
-struct StaticToggle active::Bool end
+
+mutable struct MutableToggle <: Toggle
+    active::Bool
+end
+
+struct StaticToggle <: Toggle
+    active::Bool
+end
 
 abstract type AbstractControl end
 
