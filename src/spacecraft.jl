@@ -1,7 +1,5 @@
 abstract type AbstractControl end
 
-@enum Command ENABLE DISABLE PRIO
-
 """
     ControlChannel <: AbstractControl
 
