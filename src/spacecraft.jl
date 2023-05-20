@@ -1,3 +1,7 @@
+abstract type Toggle end
+mutable struct MutableToggle active::Bool end
+struct StaticToggle active::Bool end
+
 abstract type AbstractControl end
 
 """
@@ -48,86 +52,64 @@ end
 A wrapper around a control channel with the capability to be turned on and off.
 
 # Fields
-- `id`: Binary encoded identifier for the SubControl.
-- `cmd`: Command channel to master to signal turn channels on or off.
-- `cycle`: notified whenever master control loop finishes a cycle.
+- `name`: identifiable name of the control.
+- `sink`: ControlChannel of the master control.
+- `toggle`: a toggle switch to enable or disable transfer to master channel.
 - `...`: identical to ControlChannel channels
 
 # Extra arguments
 - `size`: Buffer size for the channel. 1 is recommended.
-- `num`: Channel number representation for control ID [0 - 30].
 """
 struct SubControl <: AbstractControl
-    id::UInt32
-    cmd::Channel{UInt32}
-    cycle::Condition
+    name::String
+    sink::ControlChannel
+    toggle::Toggle
 
     engage::Channel{Bool}
     throttle::Channel{Float32}
     roll::Channel{Float32}
     direction::Channel{NTuple{3,Float64}}
     rcs::Channel{NTuple{3,Union{Missing,Float32}}}
-    function SubControl(id::Unsigned, cmd::Channel{UInt32}, cycle::Condition, size::Integer)
-        @info "Creating subcontrol" _group=:rawcon
-        if id >= 0x40000000
-            error("Invalid control channel")
-        end
-        new(id, cmd, cycle, create_control_channels(size)...)
+    function SubControl(
+        name::String,
+        sink::ControlChannel,
+        toggle::Toggle=MutableToggle(true),
+        size::Integer=1
+    )
+        @info "Creating subcontrol $name" _group=:rawcon
+        con = new(name, sink, toggle, create_control_channels(size)...)
+        @async _transfer(con.engage, sink.engage, toggle, "$name/engage")
+        @async _transfer(con.throttle, sink.throttle, toggle, "$name/throttle")
+        @async _transfer(con.roll, sink.roll, toggle, "$name/roll")
+        @async _transfer(con.direction, sink.direction, toggle, "$name/direction")
+        @async _transfer(con.rcs, sink.rcs, toggle, "$name/rcs")
+        return
     end
 end
 
-SubControl(num::Integer, cmd::Channel{UInt32}, cycle::Condition, size::Integer=1) = SubControl(convert(UInt32, 2^num), cmd, cycle, size)
-
-function Base.close(ctrl::SubControl)
-    @info "Closing subcontrol $(ctrl.id)" _group=:rawcon
-    close(ctrl.engage)
-    close(ctrl.throttle)
-    close(ctrl.roll)
-    close(ctrl.direction)
-    close(ctrl.rcs)
+function Base.close(con::SubControl)
+    @info "Closing subcontrol $(con.name)" _group=:rawcon
+    close(con.engage)
+    close(con.throttle)
+    close(con.roll)
+    close(con.direction)
+    close(con.rcs)
 end
 
 function Base.show(io::IO, con::SubControl)
-    if ispow2(con.id)
-        name = "SubControl #$(round(Int, log2(con.id)))"
-    else
-        name = "Subcontrol 0b$(Base.bin(con.id, 30, false))"
-    end
-    isopen(con) ? print(io, "$name (open)") : print(io, "$name (closed)")
+    state = isopen(con) ? "open" : "closed"
+    toggle = con.toggle.active ? "enabled" : "disabled"
+    print(io, "SubControl $(con.name) ($state, $toggle)")
 end
 
-function disable(ctrl::SubControl)
-    @debug "Control channel $(ctrl.id) disable requsted" _group=:rawcon
-    push!(ctrl.cmd, ctrl.id)
-end
-function enable(ctrl::SubControl)
-    @debug "Control channel $(ctrl.id) enable requsted" _group=:rawcon
-    push!(ctrl.cmd, ctrl.id | 0x40000000)
-end
-function enable(f::Function, ctrl::SubControl)
-    enable(ctrl)
+disable(con::SubControl) = con.toggle.switch = false
+enable(con::SubControl) = push!(con.cmd, con.id | 0x40000000)
+function enable(f::Function, con::SubControl)
+    enable(con)
     try
-        wait(ctrl.cycle)
         f()
     finally
-        disable(ctrl)
-    end
-end
-function prioritze(ctrl::SubControl)
-    @debug "Control channel $(ctrl.id) prioritze requsted" _group=:rawcon
-    push!(ctrl.cmd, ctrl.id | 0x80000000)
-end
-function restore(ctrl::SubControl)
-    @debug "Control channel $(ctrl.id) restore requsted" _group=:rawcon
-    push!(ctrl.cmd, ctrl.id | 0xC0000000)
-end
-function prioritze(f::Function, ctrl::SubControl)
-    prioritze(ctrl)
-    try
-        wait(ctrl.cycle)
-        f()
-    finally
-        resetore(ctrl)
+        disable(con)
     end
 end
 
