@@ -129,40 +129,45 @@ closed users. if the control is enabled and master control loop is in active
 state.
 """
 function master_control_loop(mc::MasterControl)
-    while isopen(mc.chan.engage)
-        remove = nothing
-        for (idx, u) ∈ enumerate(mc.users)
-            # if engage channel is closed, the user is unsubscribed.
-            if !isopen(u.chan.engage)
-                remove = idx
-                continue
+    @info "Master control loop started" _group=:system
+    try
+        while isopen(mc.chan.engage)
+            remove = nothing
+            for (idx, u) ∈ enumerate(mc.users)
+                # if engage channel is closed, the user is unsubscribed.
+                if !isopen(u.chan.engage)
+                    remove = idx
+                    continue
+                end
+                if mc.active || u.id & mc.mask == 0
+                    # when control is locked or mask is inactive, discard all values.
+                    isready(u.chan.engage)    && take!(u.chan.engage)
+                    isready(u.chan.throttle)  && take!(u.chan.throttle)
+                    isready(u.chan.roll)      && take!(u.chan.roll)
+                    isready(u.chan.direction) && take!(u.chan.direction)
+                    isready(u.chan.rcs)       && take!(u.chan.rcs)
+                else
+                    # transfer incoming data into immediate controller
+                    isready(u.chan.engage)    && put!(mc.con.engage,    take!(u.chan.engage))
+                    isready(u.chan.throttle)  && put!(mc.con.throttle,  take!(u.chan.throttle))
+                    isready(u.chan.roll)      && put!(mc.con.roll,      take!(u.chan.roll))
+                    isready(u.chan.direction) && put!(mc.con.direction, take!(u.chan.direction))
+                    isready(u.chan.rcs)       && put!(mc.con.rcs,       take!(u.chan.rcs))
+                end
             end
-            if mc.active || u.id & mc.mask == 0
-                # when control is locked or mask is inactive, discard all values.
-                isready(u.chan.engage)    && take!(u.chan.engage)
-                isready(u.chan.throttle)  && take!(u.chan.throttle)
-                isready(u.chan.roll)      && take!(u.chan.roll)
-                isready(u.chan.direction) && take!(u.chan.direction)
-                isready(u.chan.rcs)       && take!(u.chan.rcs)
-            else
-                # transfer incoming data into immediate controller
-                isready(u.chan.engage)    && put!(mc.con.engage,    take!(u.chan.engage))
-                isready(u.chan.throttle)  && put!(mc.con.throttle,  take!(u.chan.throttle))
-                isready(u.chan.roll)      && put!(mc.con.roll,      take!(u.chan.roll))
-                isready(u.chan.direction) && put!(mc.con.direction, take!(u.chan.direction))
-                isready(u.chan.rcs)       && put!(mc.con.rcs,       take!(u.chan.rcs))
+            # remove closed user (once per cycle)
+            if !isnothing(remove)
+                close(mc.users[remove])
+                popat!(mc.users, remove)
             end
+            # notify that a cycle of master control loop has been finished.
+            # this is useful when the user does not want any data to be discarded,
+            # so it can enable, wait until this signal and then start broadcasting.
+            notify(mc.cycle)
+            yield()
         end
-        # remove closed user (once per cycle)
-        if !isnothing(remove)
-            close(mc.users[remove])
-            popat!(mc.users, remove)
-        end
-        # notify that a cycle of master control loop has been finished.
-        # this is useful when the user does not want any data to be discarded,
-        # so it can enable, wait until this signal and then start broadcasting.
-        notify(mc.cycle)
-        yield()
+    finally
+        @info "Master control loop closed" _group=:system
     end
 end
 
