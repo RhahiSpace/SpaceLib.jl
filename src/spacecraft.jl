@@ -138,11 +138,24 @@ end
 
 Manages a set of SubControls and connects to hardware ControlChannel.
 
+# Command bits
+- Bit 0-29: Channel bit
+- Bit 30-31: command bit
+    - 00: Disable    (0x00000000)
+    - 01: Enable     (0x40000000)
+    - 10: Restore    (0x80000000)
+    - 11: Prioritize (0xC0000000)
+
+# Mask bits
+- Bit 0-29: Channel enabled bit
+- Bit 30-31: Unused (garbage bit)
+
 # Fields
 - `users`: A vector of SubControls.
 - `cmd`: Receives commands for toggling specific channels.
 - `chan`: Hardware ControlChannel
-- `mask`: Binary mask for enabled/disabled states.
+- `enable_mask`: Binary mask for enabled/disabled channels.
+- `proirity_mask`: Binary mask for prioritized channels. Respects disable bit.
 - `cycle`: Condition for notifying cycle completion of control loop.
 - `active`: A stop switch for cutting off all SubControls, regardless of mask.
 """
