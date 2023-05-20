@@ -207,7 +207,7 @@ Structure representing a spacecraft to be controlled.
 Saving the values here saves the trouble of traversing the part tree.
 - `events`: A dictionary for vessel-wide function synchronization.
 - `sync`: A dictionary for vessel-wide semaphore synchronization.
-- `mc`: Master control channel of the spacecraft.
+- `control`: Master control channel of the spacecraft.
 - `ts`: UT timeserver to access global time.
 - `met`: MET timeserver to access vehicle's specific mission elapsed time.
 Useful for resuming mission from save, as MET is not volatile.
@@ -218,7 +218,7 @@ struct Spacecraft
     parts::Dict{Symbol,SCR.Part}
     events::Dict{Symbol,Condition}
     sync::Dict{Symbol,Base.Semaphore}
-    mc::MasterControl
+    control::MasterControl
     ts::Timeserver
     met::Timeserver
 end
@@ -229,7 +229,7 @@ function Spacecraft(
     name = nothing,
     parts = Dict{Symbol,SCR.Part}(),
     events = Dict{Symbol,Condition}(),
-    mc = MasterControl(),
+    control = MasterControl(),
     ts = Timeserver(),
     met = Timeserver(conn, ves)
 )
@@ -244,12 +244,17 @@ function Spacecraft(
         finally
             # close the control channels.
             @info "Spacecraft $name has been shut down." _group=:system
-            close(mc)
+            close(control)
             close(met)
         end
     end
-    sp = Spacecraft(name, ves, parts, events, sync, mc, ts, met)
-    (@async hardware_control_loop(sp, mc)) |> errormonitor
+    sp = Spacecraft(name, ves, parts, events, sync, control, ts, met)
+    @info "Hardware control loop starting" _group=:rawcon
+    @async _hardware_transfer_engage(sp)
+    @async _hardware_transfer_throttle(sp)
+    @async _hardware_transfer_roll(sp)
+    @async _hardware_transfer_direction(sp)
+    @async _hardware_transfer_rcs(sp)
     return sp
 end
 
@@ -259,7 +264,7 @@ Note that this does not close the spacecraft's time server, as it's by default
 derived from the space center's clock.
 """
 function Base.close(sp::Spacecraft)
-    close(sp.mc)
+    close(sp.control)
     close(sp.met)
 end
 
@@ -279,48 +284,80 @@ end
 
 Base.isopen(sp::Spacecraft) = Base.isopen(sp.met.clients[1])
 
-"""
-    hardware_control_loop(sp::Spacecraft, m::MasterControl)
-
-Control loop that delivers control input into hardware.
-"""
-function hardware_control_loop(sp::Spacecraft, m::MasterControl)
-    ctrl = SCH.Control(sp.ves)
+function _hardware_transfer_engage(sp::Spacecraft)
     ap = SCH.AutoPilot(sp.ves)
-
-    function _engage(cmd::Bool)
-        cmd ? SCH.Engage(ap) : SCH.Disengage(ap)
-    end
-
-    function _throttle(cmd::Float32)
-        SCH.Throttle!(ctrl, clamp(cmd, 0f0, 1f0))
-    end
-
-    function _direction(cmd::NTuple{3,Float64})
-        # if norm(cmd) == 0 && return
-        cmd == (0f0, 0f0, 0f0) && return
-        SCH.TargetDirection!(ap, cmd)
-    end
-
-    function _rcs(cmd::NTuple{3,Union{Missing,Float32}})
-        fore, up, right = cmd
-        !ismissing(fore)  && SCH.Forward!(ctrl, fore)
-        !ismissing(up)    && SCH.Up!(ctrl, up)
-        !ismissing(right) && SCH.Right!(ctrl, right)
-    end
-
-    @info "Hardware control loop started" _group=:rawcon
     try
-        while isopen(m.chan)
-            isready(m.chan.engage)    && take!(m.chan.engage)    |> _engage
-            isready(m.chan.throttle)  && take!(m.chan.throttle)  |> _throttle
-            isready(m.chan.roll)      && take!(m.chan.roll)      |> SCH.Roll!
-            isready(m.chan.direction) && take!(m.chan.direction) |> _direction
-            isready(m.chan.rcs)       && take!(m.chan.rcs)       |> _rcs
+        while true
+            cmd = take!(sp.control.sink.engage)
+            cmd ? SCH.Engage(ap) : SCH.Disengage(ap)
             yield()
         end
+    catch e
+        !isa(e, InvalidStateException) && @error "Unexpected loss of engage control for $(sp.name)" _group=:rawcon
     finally
-        @info "Hardware control loop ended" _group=:rawcon
+        @debug "Engage loop closed for $(sp.name)" _group=:rawcon
+    end
+end
+
+function _hardware_transfer_throttle(sp::Spacecraft)
+    ctrl = SCH.Control(sp.ves)
+    try
+        while true
+            cmd = take!(sp.control.sink.throttle)
+            SCH.Throttle!(ctrl, clamp(cmd, 0f0, 1f0))
+            yield()
+        end
+    catch e
+        !isa(e, InvalidStateException) && @error "Unexpected loss of throttle control for $(sp.name)" _group=:rawcon
+    finally
+        @debug "Throttle loop closed for $(sp.name)" _group=:rawcon
+    end
+end
+
+function _hardware_transfer_roll(sp::Spacecraft)
+    ctrl = SCH.Control(sp.ves)
+    try
+        while true
+            cmd = take!(sp.control.sink.rcs)
+            SCH.Roll!(ctrl, cmd)
+            yield()
+        end
+    catch
+        !isa(e, InvalidStateException) && @error "Unexpected loss of roll control for $(sp.name)" _group=:rawcon
+    finally
+        @debug "roll loop closed for $(sp.name)" _group=:rawcon
+    end
+end
+
+function _hardware_transfer_direction(sp::Spacecraft)
+    ap = SCH.AutoPilot(sp.ves)
+    try
+        while true
+            cmd = take!(sp.control.sink.direction)
+            cmd != (0f0, 0f0, 0f0) && SCH.TargetDirection!(ap, cmd)
+            yield()
+        end
+    catch
+        !isa(e, InvalidStateException) && @error "Unexpected loss of direction control for $(sp.name)" _group=:rawcon
+    finally
+        @debug "direction loop closed for $(sp.name)" _group=:rawcon
+    end
+end
+
+function _hardware_transfer_rcs(sp::Spacecraft)
+    ctrl = SCH.Control(sp.ves)
+    try
+        while true
+            fore, up, right = take!(sp.control.sink.rcs)
+            !ismissing(fore)  && SCH.Forward!(ctrl, fore)
+            !ismissing(up)    && SCH.Up!(ctrl, up)
+            !ismissing(right) && SCH.Right!(ctrl, right)
+            yield()
+        end
+    catch
+        !isa(e, InvalidStateException) && @error "Unexpected loss of RCS control for $(sp.name)" _group=:rawcon
+    finally
+        @debug "RCS loop closed for $(sp.name)" _group=:rawcon
     end
 end
 
