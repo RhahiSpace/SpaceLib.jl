@@ -330,11 +330,12 @@ function Spacecraft(
         try
             # if time server closes or gets stop signal,
             # the spacecraft will no longer be controllable.
-            wait(ts.clients[1])
+            wait(met.clients[1])
         finally
             # close the control channels.
             @info "Spacecraft $name has been shut down." _group=:system
             close(mc)
+            close(met)
         end
     end
     sp = Spacecraft(name, ves, parts, events, sync, mc, ts, met)
@@ -342,9 +343,13 @@ function Spacecraft(
     return sp
 end
 
+"""
+Close the spacecraft and active associated active loops.
+Note that this does not close the spacecraft's time server, as it's by default
+derived from the space center's clock.
+"""
 function Base.close(sp::Spacecraft)
     close(sp.mc)
-    close(sp.ts)
     close(sp.met)
 end
 
