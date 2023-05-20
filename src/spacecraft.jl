@@ -281,9 +281,10 @@ Base.isopen(ctrl::ControlChannel) = Base.isopen(ctrl.engage)
 Create a new subcontrol unit, register it to the master control loop. The
 SubControl is initialized as enabled.
 """
-function subcontrol(m::MasterControl, num::Int, size::Integer=1)
-    con = SubControl(num, m.cmd, size)
+function subcontrol(m::MasterControl, num::Integer, size::Integer=1)
+    con = SubControl(num, m.cmd, m.cycle, size)
     push!(m.users, con)
+    enable(con)
     return con
 end
 
