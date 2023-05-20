@@ -20,14 +20,10 @@ struct ControlChannel <: AbstractControl
     throttle::Channel{Float32}
     roll::Channel{Float32}
     direction::Channel{NTuple{3,Float64}}
-    rcs::Channel{NTuple{3,Float32}}
+    rcs::Channel{NTuple{3,Union{Missing,Float32}}}
     function ControlChannel(size::Integer=1)
-        e = Channel{Bool}(size)
-        t = Channel{Float32}(size)
-        r = Channel{Float32}(size)
-        d = Channel{NTuple{3,Float64}}(size)
-        rcs = Channel{NTuple{3,Union{Missing,Float32}}}(size)
-        new(e, t, r, d, rcs)
+        @debug "Creating control channel" _group=:rawcon
+        new(create_control_channels(size)...)
     end
 end
 
