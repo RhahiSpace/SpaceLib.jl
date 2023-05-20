@@ -280,8 +280,10 @@ Base.close(ts::Timeserver) = close(ts.clients[1])
 next_value!(stream::KRPC.Listener) = KRPC.next_value(stream)
 next_value!(channel::Channel) = take!(channel)
 
+Base.isopen(ts::Timeserver) = Base.isopen(ts.clients[1])
+
 function Base.show(io::IO, ts::Timeserver)
-    status = Base.isopen(ts.clients[1]) ? "active" : "inactive"
+    status = isopen(ts) ? "active" : "inactive"
     formatted = ts.type == "MET" ? format_MET(ts.time) : format_UT(ts.time)
     print(io, "Timeserver ($formatted, $status)")
 end
