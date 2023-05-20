@@ -332,7 +332,7 @@ function _hardware_transfer_roll(sp::Spacecraft)
     catch
         !isa(e, InvalidStateException) && @error "Unexpected loss of roll control for $(sp.name)" _group=:rawcon
     finally
-        @debug "roll loop closed for $(sp.name)" _group=:rawcon
+        @debug "Roll loop closed for $(sp.name)" _group=:rawcon
     end
 end
 
@@ -347,7 +347,7 @@ function _hardware_transfer_direction(sp::Spacecraft)
     catch
         !isa(e, InvalidStateException) && @error "Unexpected loss of direction control for $(sp.name)" _group=:rawcon
     finally
-        @debug "direction loop closed for $(sp.name)" _group=:rawcon
+        @debug "Direction loop closed for $(sp.name)" _group=:rawcon
     end
 end
 
