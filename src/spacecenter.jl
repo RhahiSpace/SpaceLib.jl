@@ -42,6 +42,9 @@ function Base.show(io::IO, sc::SpaceCenter)
 end
 
 function Base.close(sc::SpaceCenter)
+    for c ∈ sc.crafts
+        close(c)
+    end
     close(sc.ts)
     close(sc.conn.conn)
 end
