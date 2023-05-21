@@ -7,10 +7,13 @@ using MacroTools
 import KRPC.Interface.SpaceCenter as SC
 import KRPC.Interface.SpaceCenter.RemoteTypes as SCR
 import KRPC.Interface.SpaceCenter.Helpers as SCH
-import Base: close, show, isopen
+import Base: close, show, isopen, ==
 
 # modules
 export Actuator, PartModule, Develop
+
+# workarounds.jl
+export ==
 
 # time.jl
 export Timeserver
@@ -29,6 +32,7 @@ export subscribe
 export acquire, release
 
 include("macros.jl")
+include("workarounds.jl")
 include("time.jl")
 include("spacecraft.jl")
 include("spacecenter.jl")
