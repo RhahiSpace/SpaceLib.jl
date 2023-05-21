@@ -108,17 +108,6 @@ function Base.show(io::IO, con::SubControl)
     print(io, "SubControl $(con.name) ($state, $toggle)")
 end
 
-disable(con::Union{MasterControl,SubControl}) = con.toggle.active = false
-enable(con::Union{MasterControl,SubControl}) = con.toggle.active = true
-function enable(f::Function, con::Union{MasterControl,SubControl})
-    enable(con)
-    try
-        f()
-    finally
-        disable(con)
-    end
-end
-
 """
     MasterControl()
 
@@ -182,6 +171,17 @@ function Base.show(io::IO, mc::MasterControl)
     status = Base.isopen(mc) ? "open" : "closed"
     active = mc.toggle.active ? "active" : "inactive"
     print(io, "Master Control ($status, $active) with $(length(mc.users)) users")
+end
+
+disable(con::Union{MasterControl,SubControl}) = con.toggle.active = false
+enable(con::Union{MasterControl,SubControl}) = con.toggle.active = true
+function enable(f::Function, con::Union{MasterControl,SubControl})
+    enable(con)
+    try
+        f()
+    finally
+        disable(con)
+    end
 end
 
 Base.isopen(mc::MasterControl) = Base.isopen(mc.sink)
