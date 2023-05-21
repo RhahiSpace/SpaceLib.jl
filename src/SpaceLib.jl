@@ -20,13 +20,13 @@ export Timeserver
 export connect, periodic_subscribe, delay
 
 # spacecraft.jl
-export Spacecraft, AbstractControl, MasterControl, ControlChannel
+export Spacecraft, AbstractControl, MasterControl, ControlChannel, SubControl
 export subcontrol
 
 # spacecenter.jl
 export SpaceCenter
-export connect, add_active_vessel!, remove_active_vessel!
-export subscribe
+export add_active_vessel!, remove_active_vessel!, remove_vessel!
+export subscribe, disable, enable
 
 # common functions
 export acquire, release
