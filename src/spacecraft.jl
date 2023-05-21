@@ -137,7 +137,9 @@ struct MasterControl
         @async _transfer(src.roll, sink.roll, toggle, "master/roll")
         @async _transfer(src.direction, sink.direction, toggle, "master/direction")
         @async _transfer(src.rcs, sink.rcs, toggle, "master/rcs")
-        return new(users, src, sink, toggle)
+        mc = new(users, src, sink, toggle)
+        @async _gc(mc, 120)
+        return mc
     end
 end
 
@@ -181,6 +183,16 @@ function enable(f::Function, con::Union{MasterControl,SubControl})
         f()
     finally
         disable(con)
+    end
+end
+
+"Run garbage collection for closed channels. If period is ≤ 0, run once and exit."
+function _gc(con::MasterControl, period::Real)
+    while isopen(con)
+        closed = findall(u -> !isopen(u), con.users)
+        deleteat!(con.users, closed)
+        period <= 0 && break
+        sleep(period)
     end
 end
 
