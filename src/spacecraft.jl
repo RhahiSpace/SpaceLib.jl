@@ -128,7 +128,7 @@ struct MasterControl
     sink::ControlChannel
     toggle::MutableToggle
     function MasterControl()
-        users = Vector{AbstractControl}()
+        users = Vector{SubControl}()
         src = ControlChannel(1)
         sink = ControlChannel(1)
         toggle = MutableToggle(true)
