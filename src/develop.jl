@@ -10,6 +10,7 @@ import KRPC.Interface.Drawing.Helpers as DH
 
 const MODULE_FIELD_BLACKLIST = ("TestFlightFailure_IgnitionFail",)
 
+"Part actions that can be assigned to action groups in editor"
 function list_actions(part::SCR.Part)
     modules = SCH.Modules(part)
     println("--- actions ---")
@@ -22,6 +23,7 @@ function list_actions(part::SCR.Part)
     end
 end
 
+"Buttons that can be clicked in game"
 function list_events(part::SCR.Part)
     modules = SCH.Modules(part)
     println("--- events ---")
