@@ -9,3 +9,7 @@ macro optionalprogress(name, parentid, block)
         end
     end |> esc
 end
+
+macro trace(exs...)
+    :($Base.@logmsg $Base.CoreLogging.LogLevel(-2000) $(exs...))
+end
