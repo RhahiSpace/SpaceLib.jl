@@ -1,0 +1,7 @@
+[deps]
+ErrorTypes = "7f495686-c6d2-4c77-9e8e-e4c865675f9d"
+KRPC = "7a052949-c101-4ca3-9a7e-43a2532b2fa8"
+KerbalMath = "e39bb9fd-e306-4757-9c66-d4f573953a0c"
+KerbalRemoteLogging = "032c5fe9-e08c-423e-8a23-833859907386"
+RemoteLogging = "5da01632-ec10-4c9a-b79c-b5b34d2fc1d9"
+SpaceLib = "c7ce8b93-ba31-4059-bc3d-bbdf892358a3"
