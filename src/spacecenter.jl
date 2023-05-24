@@ -53,6 +53,7 @@ function add_active_vessel!(sc::SpaceCenter; name=nothing)
     ves = SCH.ActiveVessel(sc.center)
     sp = Spacecraft(sc.conn, ves; name=name, ts=sc.ts)
     push!(sc.crafts, sp)
+    @info "Acquired spacecraft $(sp.name) for control" _group=:system
     return sp
 end
 
@@ -61,6 +62,7 @@ function _remove_vessel!(sc::SpaceCenter, inds::Vector{T}) where T <: Integer
         close(sc.crafts[i])
     end
     deleteat!(sc.crafts, inds)
+    @info "Removed $(length(inds)) spacecrafts from control" _group=:system
     return length(inds)
 end
 

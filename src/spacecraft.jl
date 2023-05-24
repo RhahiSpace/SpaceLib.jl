@@ -30,7 +30,7 @@ struct ControlChannel <: AbstractControl
     direction::Channel{NTuple{3,Float64}}
     rcs::Channel{NTuple{3,Union{Missing,Float32}}}
     function ControlChannel(size::Integer=1)
-        @debug "Creating control channel" _group=:rawcon
+        @debug "Creating control channel" _group=:control
         new(create_control_channels(size)...)
     end
 end
@@ -82,7 +82,7 @@ struct SubControl <: AbstractControl
         toggle=MutableToggle(true),
         size::Integer=1
     )
-        @info "Creating subcontrol $name" _group=:rawcon
+        @info "Creating subcontrol $name" _group=:control
         con = new(name, sink, toggle, create_control_channels(size)...)
         @async _transfer(con.engage, sink.engage, toggle, "$name/engage")
         @async _transfer(con.throttle, sink.throttle, toggle, "$name/throttle")
@@ -94,7 +94,7 @@ struct SubControl <: AbstractControl
 end
 
 function Base.close(con::SubControl)
-    @info "Closing subcontrol $(con.name)" _group=:rawcon
+    @info "Closing subcontrol $(con.name)" _group=:control
     close(con.engage)
     close(con.throttle)
     close(con.roll)
@@ -158,14 +158,14 @@ function _transfer(
     name::String="untitled"
 ) where {T}
     try
-        @debug "Transfer channel ($name) started" _group=:rawcon
+        @debug "Transfer channel ($name) started" _group=:control
         while true
             value = take!(from)
             toggle.active && put!(to, value)
             yield()
         end
     finally
-        @debug "Transfer channel ($name) closed" _group=:rawcon
+        @debug "Transfer channel ($name) closed" _group=:control
     end
 end
 
@@ -254,7 +254,7 @@ function Spacecraft(
         end
     end
     sp = Spacecraft(name, ves, parts, events, sync, control, ts, met)
-    @info "Hardware control loop starting" _group=:rawcon
+    @info "Hardware control loop starting" _group=:control
     @async _hardware_transfer_engage(sp)
     @async _hardware_transfer_throttle(sp)
     @async _hardware_transfer_roll(sp)
@@ -272,6 +272,7 @@ SubControl is initialized as enabled.
 function subcontrol(mc::MasterControl, name::String="untitled", size::Integer=1)
     con = SubControl(name, mc.src, MutableToggle(true), size)
     push!(mc.users, con)
+    @info "SubControl '$name' has been added" _group=:control
     con
 end
 subcontrol(sp::Spacecraft, name::String="untitled", size::Integer=1) = subcontrol(sp.control, name, size)
@@ -308,13 +309,19 @@ function _hardware_transfer_engage(sp::Spacecraft)
     try
         while true
             cmd = take!(sp.control.sink.engage)
-            cmd ? SCH.Engage(ap) : SCH.Disengage(ap)
+            if cmd
+                @debug "Engage autopilot" _group=:input
+                SCH.Engage(ap)
+            else
+                @debug "Disengage autopilot" _group=:input
+                SCH.Disengage(ap)
+            end
             yield()
         end
     catch e
-        !isa(e, InvalidStateException) && @error "Unexpected loss of engage control for $(sp.name)" _group=:rawcon
+        !isa(e, InvalidStateException) && @error "Unexpected loss of engage control for $(sp.name)" _group=:control
     finally
-        @debug "Engage loop closed for $(sp.name)" _group=:rawcon
+        @debug "Engage loop closed for $(sp.name)" _group=:control
     end
 end
 
@@ -323,13 +330,15 @@ function _hardware_transfer_throttle(sp::Spacecraft)
     try
         while true
             cmd = take!(sp.control.sink.throttle)
-            SCH.Throttle!(ctrl, clamp(cmd, 0f0, 1f0))
+            level = clamp(cmd, 0f0, 1f0)
+            @debug "Set throttle level to $level" _group=:input
+            SCH.Throttle!(ctrl, level)
             yield()
         end
     catch e
-        !isa(e, InvalidStateException) && @error "Unexpected loss of throttle control for $(sp.name)" _group=:rawcon
+        !isa(e, InvalidStateException) && @error "Unexpected loss of throttle control for $(sp.name)" _group=:control
     finally
-        @debug "Throttle loop closed for $(sp.name)" _group=:rawcon
+        @debug "Throttle loop closed for $(sp.name)" _group=:control
     end
 end
 
@@ -338,13 +347,14 @@ function _hardware_transfer_roll(sp::Spacecraft)
     try
         while true
             cmd = take!(sp.control.sink.rcs)
+            @debug "Set roll to $cmd" _group=:input
             SCH.Roll!(ctrl, cmd)
             yield()
         end
     catch
-        !isa(e, InvalidStateException) && @error "Unexpected loss of roll control for $(sp.name)" _group=:rawcon
+        !isa(e, InvalidStateException) && @error "Unexpected loss of roll control for $(sp.name)" _group=:control
     finally
-        @debug "Roll loop closed for $(sp.name)" _group=:rawcon
+        @debug "Roll loop closed for $(sp.name)" _group=:control
     end
 end
 
@@ -353,13 +363,14 @@ function _hardware_transfer_direction(sp::Spacecraft)
     try
         while true
             cmd = take!(sp.control.sink.direction)
+            @trace "Set direction to $cmd" _group=:input
             cmd != (0f0, 0f0, 0f0) && SCH.TargetDirection!(ap, cmd)
             yield()
         end
     catch
-        !isa(e, InvalidStateException) && @error "Unexpected loss of direction control for $(sp.name)" _group=:rawcon
+        !isa(e, InvalidStateException) && @error "Unexpected loss of direction control for $(sp.name)" _group=:control
     finally
-        @debug "Direction loop closed for $(sp.name)" _group=:rawcon
+        @debug "Direction loop closed for $(sp.name)" _group=:control
     end
 end
 
@@ -368,15 +379,16 @@ function _hardware_transfer_rcs(sp::Spacecraft)
     try
         while true
             fore, up, right = take!(sp.control.sink.rcs)
+            @trace "Set RCS throttle to $fore, $up, $right" _group=:input
             !ismissing(fore)  && SCH.Forward!(ctrl, fore)
             !ismissing(up)    && SCH.Up!(ctrl, up)
             !ismissing(right) && SCH.Right!(ctrl, right)
             yield()
         end
     catch
-        !isa(e, InvalidStateException) && @error "Unexpected loss of RCS control for $(sp.name)" _group=:rawcon
+        !isa(e, InvalidStateException) && @error "Unexpected loss of RCS control for $(sp.name)" _group=:control
     finally
-        @debug "RCS loop closed for $(sp.name)" _group=:rawcon
+        @debug "RCS loop closed for $(sp.name)" _group=:control
     end
 end
 

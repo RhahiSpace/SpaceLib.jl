@@ -147,7 +147,7 @@ end
 Subscribe to the time server. Close the returned channel to unsubscribe.
 """
 function subscribe(ts::Timeserver)
-    @debug "Time channel created"
+    @debug "Time channel created" _group=:time
     clock = Channel{Float64}(1)
     push!(ts.clients, clock)
     clock
@@ -240,12 +240,14 @@ Wait for in-game seconds to pass.
   - `parentid`: An optional parent ID for the progress bar.
 """
 function delay(
-    ts::Timeserver, seconds::Real=TIME_RESOLUTION*2, name::Union{Nothing,String}=nothing;
+    ts::Timeserver,
+    seconds::Real=TIME_RESOLUTION*2,
+    name::Union{Nothing,String}=nothing;
     parentid=ProgressLogging.ROOTID
 )
-    @debug "delay $seconds" _group=:time
+    @trace "delay $seconds" _group=:time
     if seconds < TIME_RESOLUTION*2
-        @warn "Time delay is too short (should be 0.02 seconds or longer)" _group=:time
+        @warn "Time delay is too short (should be 0.02 seconds or longer)" _group=:user
     end
     t₀ = ts.time
     t₁ = t₀
@@ -262,7 +264,7 @@ function delay(
             end
         catch e
             if isa(e, InterruptException)
-                @info "delay interrupted: $name" _group=:time
+                @info "delay interrupted: $name" _group=:user
             else
                 error(e)
             end
