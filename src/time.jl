@@ -100,15 +100,15 @@ function start_time_server!(
     @async begin
         try
             running = true
-            @debug "Starting time server" _group=:time
+            @debug "Starting time server" _group=:system
+            closed_inds = Vector{Int64}()
             while running
                 ts.time, = next_value!(stream)
-                index_offset = 0
                 for (index, client) in enumerate(ts.clients)
                     if index == 1
                         isopen(client) && continue
                         # control channel has been closed. Shutdown timeserver.
-                        @debug "Shutting down time server" _group=:time
+                        @debug "Shutting down time server" _group=:system
                         running = false
                         break
                     end
@@ -119,15 +119,16 @@ function start_time_server!(
                         # then remove the client from the list and proceed.
                         # otherwise, we have a different problem.
                         if !isa(e, InvalidStateException)
-                            @error "Time server has crashed" _group=:time
+                            @error "Time server has crashed" _group=:system
                             error(e)
                         end
-                        client = popat!(ts.clients, index - index_offset)
-                        index_offset += 1
+                        push!(closed_inds, index)
                         close(client)
                         @debug "Time channel closed." _group=:time
                     end
                 end
+                deleteat!(ts.clients, closed_inds)
+                empty!(closed_inds)
             end
         finally
             # this block will run if clients list itself has been closed.
