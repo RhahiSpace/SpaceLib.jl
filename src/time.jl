@@ -243,9 +243,10 @@ function delay(
     ts::Timeserver,
     seconds::Real=TIME_RESOLUTION*2,
     name::Union{Nothing,String}=nothing;
-    parentid=ProgressLogging.ROOTID
+    parentid::Base.UUID=ProgressLogging.ROOTID,
+    log::Bool=true
 )
-    @trace "delay $seconds" _group=:time
+    log && @trace "delay $seconds" _group=:time
     if seconds < TIME_RESOLUTION*2
         @warn "Time delay is too short (should be 0.02 seconds or longer)" _group=:user
     end
@@ -260,7 +261,7 @@ function delay(
                     (now - t₀) ≥ (seconds - TIME_RESOLUTION) && break
                     yield()
                 end
-                @debug "delay $seconds complete" _group=:time
+                log && @debug "delay $seconds complete" _group=:time
             end
         catch e
             if isa(e, InterruptException)
