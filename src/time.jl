@@ -244,6 +244,7 @@ function delay(
     seconds::Real=TIME_RESOLUTION*2,
     name::Union{Nothing,String}=nothing;
     parentid::Base.UUID=ProgressLogging.ROOTID,
+    interrupt::Union{PersistentCondition,Nothing}=nothing,
     log::Bool=true
 )
     log && @trace "delay $seconds" _group=:time
@@ -256,6 +257,10 @@ function delay(
         try
             subscribe(ts) do clock
                 for now in clock
+                    if isset(interrupt)
+                        @info "delay interrupted: $name" _group=:time
+                        break
+                    end
                     t₁ = now
                     !isnothing(name) && @logprogress name min(1, (now - t₀) / seconds)
                     (now - t₀) ≥ (seconds - TIME_RESOLUTION) && break
