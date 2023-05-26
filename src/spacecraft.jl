@@ -69,7 +69,7 @@ A wrapper around a control channel with the capability to be turned on and off.
 struct SubControl <: AbstractControl
     name::String
     sink::ControlChannel
-    toggle::MutableToggle
+    toggle::Ref{Bool}
 
     engage::Channel{Bool}
     throttle::Channel{Float32}
@@ -79,10 +79,11 @@ struct SubControl <: AbstractControl
     function SubControl(
         name::String,
         sink::ControlChannel,
-        toggle=MutableToggle(true),
+        toggle=true,
         size::Integer=1
     )
         @info "Creating subcontrol $name" _group=:control
+        toggle = Ref(toggle)
         con = new(name, sink, toggle, create_control_channels(size)...)
         @async _transfer(con.engage, sink.engage, toggle, "$name/engage")
         @async _transfer(con.throttle, sink.throttle, toggle, "$name/throttle")
@@ -126,12 +127,12 @@ struct MasterControl
     users::Vector{SubControl}
     src::ControlChannel
     sink::ControlChannel
-    toggle::MutableToggle
+    toggle::Ref{Bool}
     function MasterControl()
         users = Vector{SubControl}()
         src = ControlChannel(1)
         sink = ControlChannel(1)
-        toggle = MutableToggle(true)
+        toggle = Ref(true)
         @async _transfer(src.engage, sink.engage, toggle, "master/engage")
         @async _transfer(src.throttle, sink.throttle, toggle, "master/throttle")
         @async _transfer(src.roll, sink.roll, toggle, "master/roll")
@@ -143,44 +144,12 @@ struct MasterControl
     end
 end
 
-function Base.close(mc::MasterControl)
-    for con ∈ mc.users
-        close(con)
-    end
-    close(mc.src)
-    close(mc.sink)
-end
-
-function _transfer(
-    from::Channel{T},
-    to::Channel{T},
-    toggle::Toggle=MutableToggle(true),
-    name::String="untitled"
-) where {T}
-    try
-        @debug "Transfer channel ($name) started" _group=:control
-        while true
-            value = take!(from)
-            toggle.active && put!(to, value)
-            yield()
-        end
-    finally
-        @debug "Transfer channel ($name) closed" _group=:control
-    end
-end
-
-function Base.show(io::IO, mc::MasterControl)
-    status = Base.isopen(mc) ? "open" : "closed"
-    active = mc.toggle.active ? "active" : "inactive"
-    print(io, "Master Control ($status, $active) with $(length(mc.users)) users")
-end
-
-disable(con::Union{MasterControl,SubControl}) = con.toggle.active = false
-enable(con::Union{MasterControl,SubControl}) = con.toggle.active = true
+disable(con::Union{MasterControl,SubControl}) = con.toggle[] = false
+enable(con::Union{MasterControl,SubControl}) = con.toggle[] = true
 function enable(f::Function, con::Union{MasterControl,SubControl})
     enable(con)
     try
-        f()
+        return f()
     finally
         disable(con)
     end
@@ -270,36 +239,29 @@ Create a new subcontrol unit, register it to the master control loop. The
 SubControl is initialized as enabled.
 """
 function subcontrol(mc::MasterControl, name::String="untitled", size::Integer=1)
-    con = SubControl(name, mc.src, MutableToggle(true), size)
+    con = SubControl(name, mc.src, true, size)
     push!(mc.users, con)
     @info "SubControl '$name' has been added" _group=:control
     con
 end
 subcontrol(sp::Spacecraft, name::String="untitled", size::Integer=1) = subcontrol(sp.control, name, size)
 
-
-"""
-Close the spacecraft and active associated active loops.
-Note that this does not close the spacecraft's time server, as it's by default
-derived from the space center's clock.
-"""
-function Base.close(sp::Spacecraft)
-    close(sp.control)
-    close(sp.met)
-end
-
-function Base.show(io::IO, sp::Spacecraft)
-    name = nothing
+function _transfer(
+    from::Channel{T},
+    to::Channel{T},
+    toggle::Ref{Bool}=Ref(true),
+    name::String="untitled"
+) where {T}
     try
-        name = SCH.Name(sp.ves)
-    catch
-        name = "Unknown spacecraft"
+        @debug "Transfer channel ($name) started" _group=:control
+        while true
+            value = take!(from)
+            toggle[] && put!(to, value)
+            yield()
+        end
+    finally
+        @debug "Transfer channel ($name) closed" _group=:control
     end
-    print(
-        io,
-        "$name ($(isopen(sp))) $(format_MET(sp.met.time))\n",
-        "$(length(sp.parts)) registered parts: [$(join(keys(sp.parts), ','))]"
-    )
 end
 
 Base.isopen(sp::Spacecraft) = Base.isopen(sp.met.clients[1])
