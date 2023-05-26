@@ -16,7 +16,8 @@ end
 function setup(sp::Spacecraft, con::SubControl)
     put!(con.throttle, 1)
     preload(sp)
-    if SCH.Throttle(sp.ves) ≉ 1
+    ctrl = SCH.Control(sp.ves)
+    if SCH.Throttle(ctrl) ≉ 1
         @error "Throttle check failed"
         error("Throttle check failed")
     end

@@ -220,7 +220,7 @@ uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
 
 [[deps.SpaceLib]]
-deps = ["ErrorTypes", "KRPC", "Logging", "MacroTools", "ProgressLogging"]
+deps = ["ErrorTypes", "KRPC", "Logging", "MacroTools", "ProgressLogging", "UUIDs"]
 path = "/home/rhahi/.julia/dev/SpaceLib"
 uuid = "c7ce8b93-ba31-4059-bc3d-bbdf892358a3"
 version = "1.0.0-DEV"
