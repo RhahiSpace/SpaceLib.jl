@@ -130,12 +130,12 @@ end
     enable(con2) do
         _test_approx_tuple(con2.rcs, mc.sink.rcs, (missing, 10f0, -30.0f0))
     end
-    @test !con1.toggle.active
-    @test !con2.toggle.active
+    @test !con1.toggle[]
+    @test !con2.toggle[]
     enable(con1)
     enable(con2)
-    @test con1.toggle.active
-    @test con2.toggle.active
+    @test con1.toggle[]
+    @test con2.toggle[]
 end
 
 @testset "control toggle, master" failfast=true begin
