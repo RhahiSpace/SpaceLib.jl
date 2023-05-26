@@ -1,13 +1,3 @@
-abstract type Toggle end
-
-mutable struct MutableToggle <: Toggle
-    active::Bool
-end
-
-struct StaticToggle <: Toggle
-    active::Bool
-end
-
 abstract type AbstractControl end
 
 """
@@ -33,14 +23,6 @@ struct ControlChannel <: AbstractControl
         @debug "Creating control channel" _group=:control
         new(create_control_channels(size)...)
     end
-end
-
-function Base.close(con::ControlChannel)
-    close(con.engage)
-    close(con.throttle)
-    close(con.roll)
-    close(con.direction)
-    close(con.rcs)
 end
 
 function create_control_channels(size::Integer=1)
@@ -92,21 +74,6 @@ struct SubControl <: AbstractControl
         @async _transfer(con.rcs, sink.rcs, toggle, "$name/rcs")
         return con
     end
-end
-
-function Base.close(con::SubControl)
-    @info "Closing subcontrol $(con.name)" _group=:control
-    close(con.engage)
-    close(con.throttle)
-    close(con.roll)
-    close(con.direction)
-    close(con.rcs)
-end
-
-function Base.show(io::IO, con::SubControl)
-    state = isopen(con) ? "open" : "closed"
-    toggle = con.toggle.active ? "enabled" : "disabled"
-    print(io, "SubControl $(con.name) ($state, $toggle)")
 end
 
 """
@@ -165,10 +132,6 @@ function _gc(con::MasterControl, period::Real)
     end
 end
 
-Base.isopen(mc::MasterControl) = Base.isopen(mc.sink)
-Base.isopen(con::SubControl) = Base.isopen(con.engage)
-Base.isopen(con::ControlChannel) = Base.isopen(con.engage)
-
 """
     Spacecraft
 
@@ -190,8 +153,8 @@ struct Spacecraft
     name::String
     ves::SCR.Vessel
     parts::Dict{Symbol,SCR.Part}
-    events::Dict{Symbol,Condition}
-    sync::Dict{Symbol,Base.Semaphore}
+    events::Dict{Symbol,PersistentCondition}
+    semaphore::Dict{Symbol,Base.Semaphore}
     control::MasterControl
     ts::Timeserver
     met::Timeserver
@@ -269,8 +232,6 @@ function _transfer(
         @debug "Transfer channel ($name) closed" _group=:control
     end
 end
-
-Base.isopen(sp::Spacecraft) = Base.isopen(sp.met.clients[1])
 
 function _hardware_transfer_engage(sp::Spacecraft)
     ap = SCH.AutoPilot(sp.ves)
@@ -422,9 +383,9 @@ end
 
 Release a semaphore of the Spacecraft identified by `sym`.
 """
-function release(sp::Spacecraft, sym::Symbol)
-    sym ∉ keys(sp.sync) && return
-    Base.release(sp.sync[sym])
+function Base.release(sp::Spacecraft, sym::Symbol)
+    sym ∉ keys(sp.semaphore) && return
+    Base.release(sp.semaphore[sym])
 end
 
 """
@@ -432,11 +393,13 @@ end
 
 Acquire or create a semaphore of the Spacecraft identified by `sym`.
 """
-function acquire(sp::Spacecraft, sym::Symbol, limit::Integer=1)
-    if sym ∉ keys(sp.sync)
-        sp.sync[sym] = Base.Semaphore(limit)
+function Base.acquire(sp::Spacecraft, sym::Symbol, limit::Integer=1)
+    Base.acquire(sp.semaphore[:semaphore]) do
+        if sym ∉ keys(sp.semaphore)
+            sp.semaphore[sym] = Base.Semaphore(limit)
+        end
     end
-    Base.acquire(sp.sync[sym])
+    Base.acquire(sp.semaphore[sym])
 end
 
 """
@@ -445,11 +408,77 @@ end
 Acquire or create a semaphore of the Spacecraft identified by `sym`,
 execute function `f` and then release the semaphore.
 """
-function acquire(f::Function, sp::Spacecraft, sym::Symbol, limit::Integer=1)
+function Base.acquire(f::Function, sp::Spacecraft, sym::Symbol, limit::Integer=1)
     try
         acquire(sp, sym, limit)
-        f()
+        return f()
     finally
         release(sp, sym)
     end
 end
+
+"""
+Close the spacecraft and active associated active loops.
+Note that this does not close the spacecraft's time server, as it's by default
+derived from the space center's clock.
+"""
+function Base.close(sp::Spacecraft)
+    close(sp.control)
+    close(sp.met)
+end
+
+function Base.close(mc::MasterControl)
+    for con ∈ mc.users
+        close(con)
+    end
+    close(mc.src)
+    close(mc.sink)
+end
+
+function Base.close(con::SubControl)
+    @info "Closing subcontrol $(con.name)" _group=:control
+    close(con.engage)
+    close(con.throttle)
+    close(con.roll)
+    close(con.direction)
+    close(con.rcs)
+end
+
+function Base.close(con::ControlChannel)
+    close(con.engage)
+    close(con.throttle)
+    close(con.roll)
+    close(con.direction)
+    close(con.rcs)
+end
+
+function Base.show(io::IO, sp::Spacecraft)
+    name = nothing
+    try
+        name = SCH.Name(sp.ves)
+    catch
+        name = "Unknown spacecraft"
+    end
+    print(
+        io,
+        "$name ($(isopen(sp))) $(format_MET(sp.met.time))\n",
+        "$(length(sp.parts)) registered parts: [$(join(keys(sp.parts), ','))]"
+    )
+end
+
+function Base.show(io::IO, mc::MasterControl)
+    status = Base.isopen(mc) ? "open" : "closed"
+    active = mc.toggle[] ? "active" : "inactive"
+    print(io, "Master Control ($status, $active) with $(length(mc.users)) users")
+end
+
+function Base.show(io::IO, con::SubControl)
+    state = isopen(con) ? "open" : "closed"
+    toggle = con.toggle[] ? "enabled" : "disabled"
+    print(io, "SubControl $(con.name) ($state, $toggle)")
+end
+
+Base.isopen(sp::Spacecraft) = Base.isopen(sp.met.clients[1])
+Base.isopen(mc::MasterControl) = Base.isopen(mc.sink)
+Base.isopen(con::SubControl) = Base.isopen(con.engage)
+Base.isopen(con::ControlChannel) = Base.isopen(con.engage)
