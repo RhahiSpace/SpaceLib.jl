@@ -201,15 +201,21 @@ function Spacecraft(
     conn::KRPC.KRPCConnection,
     ves::SCR.Vessel;
     name = nothing,
-    parts = Dict{Symbol,SCR.Part}(),
-    events = Dict{Symbol,Condition}(),
     control = MasterControl(),
     ts = Timeserver(),
     met = Timeserver(conn, ves)
 )
     name = isnothing(name) ? SCH.Name(ves) : name
     ts.type == "Offline" && @warn "Using offline time server; vessel timing maybe out of sync." _group=:system
-    sync = Dict{Symbol,Base.Semaphore}(:stage => Base.Semaphore(1))
+    parts = Dict{Symbol,SCR.Part}()
+    events = Dict{Symbol,PersistentCondition}(
+        :never => PersistentCondition(),
+    )
+    semaphore = Dict{Symbol,Base.Semaphore}(
+        :stage => Base.Semaphore(1),
+        :semaphore => Base.Semaphore(1),
+        :events => Base.Semaphore(1),
+    )
     @async begin
         try
             # if time server closes or gets stop signal,
@@ -222,7 +228,7 @@ function Spacecraft(
             close(met)
         end
     end
-    sp = Spacecraft(name, ves, parts, events, sync, control, ts, met)
+    sp = Spacecraft(name, ves, parts, events, semaphore, control, ts, met)
     @info "Hardware control loop starting" _group=:control
     @async _hardware_transfer_engage(sp)
     @async _hardware_transfer_throttle(sp)
@@ -352,6 +358,63 @@ function _hardware_transfer_rcs(sp::Spacecraft)
     finally
         @debug "RCS loop closed for $(sp.name)" _group=:control
     end
+end
+
+function setevent(sp::Spacecraft, sym::Symbol;
+    active::Bool=false, value::Any=nothing
+)
+    event = nothing
+    acquire(sp, :events) do
+        if sym ∉ keys(sp.events)
+            event = PersistentCondition(active, value)
+            sp.events[sym] = event
+        else
+            event = sp.events[sym]
+            event.active[] = active
+            event.value[] = value
+        end
+    end
+    @assert !isnothing(event)
+    return event
+end
+
+function setevent(sp::Spacecraft, event::PersistentCondition;
+    active::Bool=false, value::Any=nothing
+)
+    acquire(sp, :events) do
+        event.active[] = active
+        event.value[] = value
+    end
+    return event
+end
+
+function waitfor(sp::Spacecraft, sym::Symbol;
+    retroactive::Bool=true, once::Bool=false
+)
+    setevent(sp, sym)
+    event = sp.events[sym]
+    if retroactive && event.active[]
+        once ? waitfor(sp, :never) : return event.value[]
+    end
+    wait(sp.events[sym].cond)
+end
+
+function trigger(sp::Spacecraft, sym::Symbol, value=nothing;
+    name::String="", all::Bool=true, error::Bool=false, active::Bool=true
+)
+    event = setevent(sp, sym; active=active, value=value)
+    count = notify(event.cond, value; all=all, error=error)
+    @debug "Notified $count listeners: $name" _group=:sync
+    return count
+end
+
+function trigger(sp::Spacecraft, event::PersistentCondition, value=nothing;
+    name::String="", all::Bool=true, error::Bool=false, active::Bool=true
+)
+    event = setevent(sp, event; active=active, value=value)
+    count = notify(event.cond, value; all=all, error=error)
+    @debug "Notified $count listeners: $name" _group=:sync
+    return count
 end
 
 """
