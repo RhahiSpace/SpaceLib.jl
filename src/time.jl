@@ -124,7 +124,7 @@ function start_time_server!(
                         end
                         push!(closed_inds, index)
                         close(client)
-                        @debug "Time channel closed." _group=:time
+                        @trace "Time channel closed." _group=:time
                     end
                 end
                 deleteat!(ts.clients, closed_inds)
@@ -147,7 +147,7 @@ end
 Subscribe to the time server. Close the returned channel to unsubscribe.
 """
 function subscribe(ts::Timeserver)
-    @debug "Time channel created" _group=:time
+    @trace "Time channel created" _group=:time
     clock = Channel{Float64}(1)
     push!(ts.clients, clock)
     clock
