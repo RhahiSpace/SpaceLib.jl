@@ -34,18 +34,22 @@ function setevent(sp::Spacecraft, event::PersistentCondition;
     return event
 end
 
-function waitfor(sp::Spacecraft, sym::Symbol;
+function wait(sp::Spacecraft, sym::Symbol;
     retroactive::Bool=true, once::Bool=false
 )
     setevent(sp, sym)
     event = sp.events[sym]
     if retroactive && event.active[]
-        once ? waitfor(sp, :never) : return event.value[]
+        once ? wait(sp, :never) : return event.value[]
     end
     wait(sp.events[sym].cond)
 end
 
-function trigger(event::PersistentCondition, value=nothing;
+function Base.wait(sp::Spacecraft, sym::Symbol)
+    wait(sp, sym)
+end
+
+function notify(event::PersistentCondition, value=nothing;
     name::String="", all::Bool=true, error::Bool=false, active::Bool=true
 )
     # this might not be MT-safe.
@@ -56,7 +60,7 @@ function trigger(event::PersistentCondition, value=nothing;
     return count
 end
 
-function trigger(sp::Spacecraft, sym::Symbol, value=nothing;
+function notify(sp::Spacecraft, sym::Symbol, value=nothing;
     name::String="", all::Bool=true, error::Bool=false, active::Bool=true
 )
     event = setevent(sp, sym; active=active, value=value)
@@ -65,7 +69,7 @@ function trigger(sp::Spacecraft, sym::Symbol, value=nothing;
     return count
 end
 
-function trigger(sp::Spacecraft, event::PersistentCondition, value=nothing;
+function notify(sp::Spacecraft, event::PersistentCondition, value=nothing;
     name::String="", all::Bool=true, error::Bool=false, active::Bool=true
 )
     event = setevent(sp, event; active=active, value=value)
