@@ -8,7 +8,7 @@ import KRPC.Interface.SpaceCenter.RemoteTypes as SCR
 
 export AbstractEngine, RealEngine, VanillaEngine
 export isstable, runtime, MTBF, spooltime
-export ignite!, shutdown!
+export ignite!, shutdown!, thrust, wait_for_burnout
 
 abstract type AbstractEngine end
 abstract type SingleEngine <: AbstractEngine end
@@ -104,4 +104,18 @@ function shutdown!(e::SingleEngine)
     SCH.Active!(e.engine, false)
 end
 
+function ignite!(sp::Spacecraft, e::SingleEngine; error=false, expected_thrust=0)
+    ignite!(e)
+    delay(sp.ts, e.spooltime)
+    th = thrust(e)
+    if th > 0 && th ≥ expected_thrust
+        @info "Ignition confirmed for $(e.name)" _group=:motor
+    else
+        @warn "Ignition failed for $(e.name)" _group=:motor
+        error && error()
+    end
+    return th
+end
+
+thrust(e::SingleEngine) = SCH.Thrust(e.engine)
 end # module
