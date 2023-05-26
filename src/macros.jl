@@ -1,6 +1,6 @@
 macro optionalprogress(name, parentid, block)
     return quote
-        if isnothing($name)
+        if isnothing($name) || $name == false
             $block
         else
             @withprogress name=name parentid=parentid begin
