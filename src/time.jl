@@ -177,7 +177,7 @@ end
 function subscribe(f::Function, ts::Timeserver)
     clock = subscribe(ts)
     try
-        f(clock)
+        return f(clock)
     finally
         close(clock)
     end
@@ -220,7 +220,7 @@ Periodic subscription that closes itself after `f` finishes.
 function periodic_subscribe(f::Function, ts::Timeserver, period::Real)
     coarse_clock = periodic_subscribe(ts, period)
     try
-        f(coarse_clock)
+        return f(coarse_clock)
     finally
         close(coarse_clock)
     end
