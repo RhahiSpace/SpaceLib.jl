@@ -11,22 +11,26 @@ import KRPC.Interface.SpaceCenter.Helpers as SCH
 import KRPC.Interface.KRPC as KK
 import KRPC.Interface.KRPC.RemoteTypes as KR
 import KRPC.Interface.KRPC.Helpers as KH
-import Base: close, show, isopen, ==
+import Base: close, show, isopen, ==, notify, acquire, release
 
 # modules
-export Actuator, PartModule, Develop, Parts, ReferenceFrame
+export PartModule, Develop, Parts, ReferenceFrame
 export SC, SCR, SCH, KK, KR, KH
 
 # workarounds.jl
 export ==
+
+# stage.jl
+export action!, stage!
 
 # time.jl
 export Timeserver
 export connect, periodic_subscribe, delay
 
 # spacecraft.jl
-export Spacecraft, AbstractControl, MasterControl, ControlChannel, SubControl
-export subcontrol
+export Spacecraft, PersistentCondition
+export AbstractControl, MasterControl, ControlChannel, SubControl
+export subcontrol, isset, reset, setevent, trigger
 
 # spacecenter.jl
 export SpaceCenter
@@ -35,17 +39,18 @@ export subscribe, disable, enable
 
 # parts and modules
 export PartModule, Engine
-export stage!
 
 # common functions
-export acquire, release, @trace
+export acquire, release, @trace, waitfor
 
 include("macros.jl")
 include("workarounds.jl")
 include("time.jl")
 include("spacecraft.jl")
+include("synchronization.jl")
+include("delay.jl")
 include("spacecenter.jl")
-include("actuator.jl")
+include("stage.jl")
 
 include("partmodule/partmodule.jl")
 include("partmodule/engine.jl")
