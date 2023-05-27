@@ -1,4 +1,5 @@
 isset(event::EventCondition) = event.active[]
+value(event::EventCondition) = event.value[]
 isset(event::Nothing) = false
 
 reset(event::EventCondition) = setevent(event; active=false, value=nothing)
