@@ -78,7 +78,7 @@ end
 function notify(event::EventCondition, value=nothing;
     name::String="Unknown", all::Bool=true, error::Bool=false
 )
-    setevent(event; active=active, value=value)
+    setevent(event; active=true, value=value)
     count = notify(event.cond, value; all=all, error=error)
     @debug "`$name` has notified $count listeners" _group=:event
     return count
@@ -87,7 +87,7 @@ end
 function notify(sp::Spacecraft, sym::Symbol, value=nothing;
     name::String="", all::Bool=true, error::Bool=false
 )
-    event = setevent(sp, sym; active=active, value=value)
+    event = setevent(sp, sym; active=true, value=value)
     count = notify(event.cond, value; all=all, error=error)
     @debug "`$name` has notified $count listeners via $sym" _group=:event
     return count
@@ -96,7 +96,7 @@ end
 function notify(sp::Spacecraft, event::EventCondition, value=nothing;
     name::String="", all::Bool=true, error::Bool=false
 )
-    event = setevent(sp, event; active=active, value=value)
+    event = setevent(sp, event; active=true, value=value)
     count = notify(event.cond, value; all=all, error=error)
     @debug "`$name` has notified $count listeners" _group=:event
     return count
