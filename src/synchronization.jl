@@ -15,7 +15,7 @@ function setevent(event::EventCondition;
 end
 
 """
-Create or retrieve the spacecraft's EventCondition, and set it state.
+Create or modify the spacecraft's EventCondition without notifying it.
 Locks spacecraft's event storage during access.
 """
 function setevent(sp::Spacecraft, sym::Symbol;
@@ -37,7 +37,7 @@ function setevent(sp::Spacecraft, sym::Symbol;
 end
 
 """
-Set state of an EventCondition.
+Set state of an EventCondition without notifying it.
 Locks spacecraft's event storage during access.
 """
 function setevent(sp::Spacecraft, event::EventCondition;
