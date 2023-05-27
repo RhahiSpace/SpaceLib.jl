@@ -62,7 +62,7 @@ function wait(sp::Spacecraft, sym::Symbol;
 end
 
 function notify(event::EventCondition, value=nothing;
-    name::String="Unknown", all::Bool=true, error::Bool=false, active::Bool=true
+    name::String="Unknown", all::Bool=true, error::Bool=false
 )
     setevent(event; active=active, value=value)
     count = notify(event.cond, value; all=all, error=error)
@@ -71,7 +71,7 @@ function notify(event::EventCondition, value=nothing;
 end
 
 function notify(sp::Spacecraft, sym::Symbol, value=nothing;
-    name::String="", all::Bool=true, error::Bool=false, active::Bool=true
+    name::String="", all::Bool=true, error::Bool=false
 )
     event = setevent(sp, sym; active=active, value=value)
     count = notify(event.cond, value; all=all, error=error)
@@ -80,7 +80,7 @@ function notify(sp::Spacecraft, sym::Symbol, value=nothing;
 end
 
 function notify(sp::Spacecraft, event::EventCondition, value=nothing;
-    name::String="", all::Bool=true, error::Bool=false, active::Bool=true
+    name::String="", all::Bool=true, error::Bool=false
 )
     event = setevent(sp, event; active=active, value=value)
     count = notify(event.cond, value; all=all, error=error)
