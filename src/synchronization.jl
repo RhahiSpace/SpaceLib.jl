@@ -50,6 +50,19 @@ function setevent(sp::Spacecraft, event::EventCondition;
     return event
 end
 
+"""
+Retrieve event, but don't create it.
+To create it if it doesn't exist, use `setevent`.
+"""
+function getevent(sp::Spacecraft, sym::Symbol)
+    event = nothing
+    acquire(sp, :events) do
+        if sym ∈ keys(sp.events)
+            event = sp.events[:sym]
+        end
+    return event
+end
+
 function wait(sp::Spacecraft, sym::Symbol;
     retroactive::Bool=true, once::Bool=false
 )
