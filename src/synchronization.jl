@@ -1,11 +1,9 @@
 isset(event::EventCondition) = event.active[]
 isset(event::Nothing) = false
 
-function reset(event::EventCondition)
-    event.active[] = false
-    event.value[] = nothing
-end
+reset(event::EventCondition) = setevent(event; active=false, value=nothing)
 
+"""Set state of an EventCondition. Not multi-thread safe."""
 function setevent(event::EventCondition;
     active::Bool=false, value::Any=nothing
 )
@@ -15,6 +13,10 @@ function setevent(event::EventCondition;
     return event
 end
 
+"""
+Create or retrieve the spacecraft's EventCondition, and set it state.
+Locks spacecraft's event storage during access.
+"""
 function setevent(sp::Spacecraft, sym::Symbol;
     active::Bool=false, value::Any=nothing
 )
@@ -33,6 +35,10 @@ function setevent(sp::Spacecraft, sym::Symbol;
     return event
 end
 
+"""
+Set state of an EventCondition.
+Locks spacecraft's event storage during access.
+"""
 function setevent(sp::Spacecraft, event::EventCondition;
     active::Bool=false, value::Any=nothing
 )
