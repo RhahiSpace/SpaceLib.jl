@@ -12,7 +12,7 @@ global_logger(ConsoleLogger(Warn))
     if GROUP != "live" && (GROUP == "static" || GROUP == "all")
         @time @safetestset "clocks" begin include("static/clocks.jl") end
         @time @safetestset "control pipe" begin include("static/controlpipe.jl") end
-        @time @safetestset "synchronizations" begin include("static/synchro.jl") end
+        @time @safetestset "synchronizations" begin include("static/events.jl") end
     end
 
     # live tests
