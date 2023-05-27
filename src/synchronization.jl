@@ -2,7 +2,7 @@ isset(event::EventCondition) = event.active[]
 value(event::EventCondition) = event.value[]
 isset(event::Nothing) = false
 
-reset(event::EventCondition) = setevent(event; active=false, value=nothing)
+Base.reset(event::EventCondition) = setevent(event; active=false, value=nothing)
 
 """Set state of an EventCondition. Not multi-thread safe."""
 function setevent(event::EventCondition;

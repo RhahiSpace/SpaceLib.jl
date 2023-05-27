@@ -11,7 +11,7 @@ import KRPC.Interface.SpaceCenter.Helpers as SCH
 import KRPC.Interface.KRPC as KK
 import KRPC.Interface.KRPC.RemoteTypes as KR
 import KRPC.Interface.KRPC.Helpers as KH
-import Base: close, show, isopen, ==, notify, acquire, release, wait
+import Base: close, show, isopen, ==, notify, acquire, release, wait, reset
 
 # modules
 export PartModule, Develop, Parts, ReferenceFrame
