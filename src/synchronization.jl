@@ -58,15 +58,15 @@ function wait(sp::Spacecraft, sym::Symbol;
     if retroactive && event.active[]
         once ? wait(sp, :never) : return event.value[]
     end
-    wait(event.cond)
+    Base.wait(event.cond)
 end
 
 function notify(event::EventCondition, value=nothing;
-    name::String="", all::Bool=true, error::Bool=false, active::Bool=true
+    name::String="Unknown", all::Bool=true, error::Bool=false, active::Bool=true
 )
     setevent(event; active=active, value=value)
     count = notify(event.cond, value; all=all, error=error)
-    @debug "Notified $count listeners: $name" _group=:sync
+    @debug "`$name` has notified $count listeners" _group=:event
     return count
 end
 
@@ -75,7 +75,7 @@ function notify(sp::Spacecraft, sym::Symbol, value=nothing;
 )
     event = setevent(sp, sym; active=active, value=value)
     count = notify(event.cond, value; all=all, error=error)
-    @debug "Notified $count listeners: $name" _group=:sync
+    @debug "`$name` has notified $count listeners via $sym" _group=:event
     return count
 end
 
@@ -84,7 +84,7 @@ function notify(sp::Spacecraft, event::EventCondition, value=nothing;
 )
     event = setevent(sp, event; active=active, value=value)
     count = notify(event.cond, value; all=all, error=error)
-    @debug "Notified $count listeners: $name" _group=:sync
+    @debug "`$name` has notified $count listeners" _group=:event
     return count
 end
 
