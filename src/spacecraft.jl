@@ -116,10 +116,10 @@ struct MasterControl
     src::ControlChannel
     sink::ControlChannel
     toggle::Ref{Bool}
-    function MasterControl()
+    function MasterControl(size::Integer=1)
         users = Vector{SubControl}()
-        src = ControlChannel(1)
-        sink = ControlChannel(1)
+        src = ControlChannel(size)
+        sink = ControlChannel(size)
         toggle = Ref(true)
         @async _transfer(src.engage, sink.engage, toggle, "master/engage")
         @async _transfer(src.throttle, sink.throttle, toggle, "master/throttle")
@@ -213,12 +213,14 @@ function Spacecraft(
         end
     end
     sp = Spacecraft(name, ves, parts, events, semaphore, control, ts, met)
-    @info "Hardware control loop starting" _group=:control
-    @async _hardware_transfer_engage(sp)
-    @async _hardware_transfer_throttle(sp)
-    @async _hardware_transfer_roll(sp)
-    @async _hardware_transfer_direction(sp)
-    @async _hardware_transfer_rcs(sp)
+    if ts.type != "Offline"
+        @info "Hardware control loop starting" _group=:control
+        @async _hardware_transfer_engage(sp)
+        @async _hardware_transfer_throttle(sp)
+        @async _hardware_transfer_roll(sp)
+        @async _hardware_transfer_direction(sp)
+        @async _hardware_transfer_rcs(sp)
+    end
     return sp
 end
 
