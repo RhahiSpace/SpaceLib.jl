@@ -1,8 +1,19 @@
-struct PersistentCondition
+"""
+    EventCondition
+
+A combination of Event and Condition, which can be waited, notified, and peeked
+at.
+
+# Fields
+- `cond`: underlying Condition object, which is an edge-triggerd event source.
+- `active`: indicates whether this Condition has been triggered, making this also a level-triggered source.
+- `value`: the value used to trigger the object.
+"""
+struct EventCondition
     cond::Condition
     active::Ref{Bool}
     value::Ref{Any}
-    function PersistentCondition(active::Bool=false, value::Any=nothing)
+    function EventCondition(active::Bool=false, value::Any=nothing)
         new(Condition(), active, value)
     end
 end
@@ -163,7 +174,7 @@ struct Spacecraft
     name::String
     ves::SCR.Vessel
     parts::Dict{Symbol,SCR.Part}
-    events::Dict{Symbol,PersistentCondition}
+    events::Dict{Symbol,EventCondition}
     semaphore::Dict{Symbol,Base.Semaphore}
     control::MasterControl
     ts::Timeserver
@@ -181,8 +192,8 @@ function Spacecraft(
     name = isnothing(name) ? SCH.Name(ves) : name
     ts.type == "Offline" && @warn "Using offline time server; vessel timing maybe out of sync." _group=:system
     parts = Dict{Symbol,SCR.Part}()
-    events = Dict{Symbol,PersistentCondition}(
-        :never => PersistentCondition(),
+    events = Dict{Symbol,EventCondition}(
+        :never => EventCondition(),
     )
     semaphore = Dict{Symbol,Base.Semaphore}(
         :stage => Base.Semaphore(1),

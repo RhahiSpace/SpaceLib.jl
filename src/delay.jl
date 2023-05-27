@@ -15,7 +15,7 @@ function delay(
     seconds::Real=TIME_RESOLUTION*2,
     name::Union{Nothing,String}=nothing;
     parentid::Base.UUID=ProgressLogging.ROOTID,
-    interrupt::Union{PersistentCondition,Nothing}=nothing,
+    interrupt::Union{EventCondition,Nothing}=nothing,
     log::Bool=true
 )
     log && @trace "delay $seconds" _group=:time

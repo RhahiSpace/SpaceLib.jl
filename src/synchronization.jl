@@ -1,7 +1,7 @@
-isset(event::PersistentCondition) = event.active[]
+isset(event::EventCondition) = event.active[]
 isset(event::Nothing) = false
 
-function reset(event::PersistentCondition)
+function reset(event::EventCondition)
     event.active[] = false
     event.value[] = nothing
 end
@@ -12,7 +12,7 @@ function setevent(sp::Spacecraft, sym::Symbol;
     event = nothing
     acquire(sp, :events) do
         if sym ∉ keys(sp.events)
-            event = PersistentCondition(active, value)
+            event = EventCondition(active, value)
             sp.events[sym] = event
         else
             event = sp.events[sym]
@@ -24,7 +24,7 @@ function setevent(sp::Spacecraft, sym::Symbol;
     return event
 end
 
-function setevent(sp::Spacecraft, event::PersistentCondition;
+function setevent(sp::Spacecraft, event::EventCondition;
     active::Bool=false, value::Any=nothing
 )
     acquire(sp, :events) do
@@ -38,18 +38,14 @@ function wait(sp::Spacecraft, sym::Symbol;
     retroactive::Bool=true, once::Bool=false
 )
     setevent(sp, sym)
-    event = sp.events[sym]
+    event::EventCondition = sp.events[sym]
     if retroactive && event.active[]
         once ? wait(sp, :never) : return event.value[]
     end
-    wait(sp.events[sym].cond)
+    wait(event.cond)
 end
 
-function Base.wait(sp::Spacecraft, sym::Symbol)
-    wait(sp, sym)
-end
-
-function notify(event::PersistentCondition, value=nothing;
+function notify(event::EventCondition, value=nothing;
     name::String="", all::Bool=true, error::Bool=false, active::Bool=true
 )
     # this might not be MT-safe.
@@ -69,7 +65,7 @@ function notify(sp::Spacecraft, sym::Symbol, value=nothing;
     return count
 end
 
-function notify(sp::Spacecraft, event::PersistentCondition, value=nothing;
+function notify(sp::Spacecraft, event::EventCondition, value=nothing;
     name::String="", all::Bool=true, error::Bool=false, active::Bool=true
 )
     event = setevent(sp, event; active=active, value=value)

@@ -28,7 +28,7 @@ export Timeserver
 export connect, periodic_subscribe, delay
 
 # spacecraft.jl & synchronization.jl
-export Spacecraft, PersistentCondition
+export Spacecraft, EventCondition
 export AbstractControl, MasterControl, ControlChannel, SubControl
 export subcontrol, isset, reset, setevent, notify, wait
 
