@@ -344,6 +344,20 @@ function _hardware_transfer_rcs(sp::Spacecraft)
     end
 end
 
+
+"""Get a generic time string useful for logging"""
+function timestring(sp::Spacecraft)
+    return () -> begin
+        try
+            sp.met.time > 0 && return format_MET(sp.met.time)
+            sp.ts.time > 0 && format_UT(ts.time)
+        catch
+        end
+        return ""
+    end
+end
+
+
 """
 Close the spacecraft and active associated active loops.
 Note that this does not close the spacecraft's time server, as it's by default

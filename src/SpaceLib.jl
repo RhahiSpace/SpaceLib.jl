@@ -30,7 +30,7 @@ export connect, periodic_subscribe, delay
 # spacecraft.jl & synchronization.jl
 export Spacecraft, EventCondition
 export AbstractControl, MasterControl, ControlChannel, SubControl
-export subcontrol, isset, reset, setevent, getevent, notify, wait, value
+export subcontrol, isset, reset, setevent, getevent, notify, wait, value, timestring
 
 # spacecenter.jl
 export SpaceCenter
