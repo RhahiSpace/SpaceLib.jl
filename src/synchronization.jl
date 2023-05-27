@@ -58,7 +58,7 @@ function getevent(sp::Spacecraft, sym::Symbol)
     event = nothing
     acquire(sp, :events) do
         if sym ∈ keys(sp.events)
-            event = sp.events[:sym]
+            event = sp.events[sym]
         end
     end
     return event
