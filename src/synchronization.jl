@@ -6,6 +6,15 @@ function reset(event::EventCondition)
     event.value[] = nothing
 end
 
+function setevent(event::EventCondition;
+    active::Bool=false, value::Any=nothing
+)
+    # not MT safe.
+    event.active[] = active
+    event.value[] = value
+    return event
+end
+
 function setevent(sp::Spacecraft, sym::Symbol;
     active::Bool=false, value::Any=nothing
 )
@@ -48,9 +57,7 @@ end
 function notify(event::EventCondition, value=nothing;
     name::String="", all::Bool=true, error::Bool=false, active::Bool=true
 )
-    # this might not be MT-safe.
-    event.active[] = active
-    event.value[] = value
+    setevent(event; active=active, value=value)
     count = notify(event.cond, value; all=all, error=error)
     @debug "Notified $count listeners: $name" _group=:sync
     return count
