@@ -60,6 +60,7 @@ function getevent(sp::Spacecraft, sym::Symbol)
         if sym ∈ keys(sp.events)
             event = sp.events[:sym]
         end
+    end
     return event
 end
 
