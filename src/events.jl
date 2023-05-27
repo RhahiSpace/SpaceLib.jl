@@ -140,3 +140,9 @@ function Base.acquire(f::Function, sp::Spacecraft, sym::Symbol, limit::Integer=1
         release(sp, sym)
     end
 end
+
+function Base.show(io::IO, event::EventCondition)
+    state = isset(event) ? "triggered" : "standby"
+    value = isnothing(value) ? "empty" : "stored"
+    print(io, "EventCondition ($state, $value)")
+end
