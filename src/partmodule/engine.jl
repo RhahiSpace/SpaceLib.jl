@@ -18,8 +18,6 @@ abstract type AbstractEngine end
 abstract type SingleEngine <: AbstractEngine end
 abstract type RealSingleEngine <: SingleEngine end
 
-const g = 9.80665  # standard grav acceleration m/s²
-
 struct VanillaEngine <: SingleEngine
     name::String
     part::SCR.Part
