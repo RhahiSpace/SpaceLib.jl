@@ -1,11 +1,11 @@
 module Parts
 
 using SpaceLib
-using ..PartModule: getmodule
+using ..PartModule
 
 export ProbeCore, destruct!
 
-struct ProbeCore
+struct ProbeCore <: Part
     name::String
     destruct::SCR.Module
     function ProbeCore(part::SCR.Part)
