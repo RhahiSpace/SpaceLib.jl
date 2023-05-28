@@ -10,6 +10,16 @@ import KRPC.Interface.Drawing.Helpers as DH
 
 const MODULE_FIELD_BLACKLIST = ("TestFlightFailure_IgnitionFail",)
 
+function list_parts(sp::Spacecraft)
+    parts = SCH.Parts(sp.ves) |> SCH.All
+    for (idx, p) ∈ enumerate(parts)
+        tag = SCH.Tag(p)
+        tag = tag == "" ? "" : " #$tag"
+        println("[$idx] $(SCH.Name(p))", tag)
+    end
+    return parts
+end
+
 "Part actions that can be assigned to action groups in editor"
 function list_actions(part::SCR.Part)
     modules = SCH.Modules(part)
