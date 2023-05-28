@@ -84,8 +84,8 @@ end
 
 function isstable(e::RealEngine)
     value = SCH.GetFieldById(e.module_realfuel, "propellantStatus")
-    i₁ = findfirst(status, '(')
-    i₂ = findfirst(status, ')')
+    i₁ = findfirst('(', value)
+    i₂ = findfirst(')', value)
     return parse(Float64, value[i₁+1:i₂-3])
 end
 isstable(e::VanillaEngine) = 100.0
