@@ -45,19 +45,28 @@ export acquire, release, @trace
 
 include("macros.jl")
 include("workarounds.jl")
+
+# system
 include("time.jl")
 include("spacecraft.jl")
 include("events.jl")
 include("delay.jl")
 include("spacecenter.jl")
-include("stage.jl")
 
+# constants
+include("constants.jl")
+include("frame.jl")
+
+# actuators
+include("stage.jl")
 include("partmodule/partmodule.jl")
+include("partmodule/resources.jl")
 include("partmodule/engine.jl")
-include("partmodule/parts.jl")
+include("partmodule/core.jl")
 include("partmodule/decoupler.jl")
 include("partmodule/parachute.jl")
-include("frame.jl")
+
+# others
 include("develop.jl")
 
 end # module
