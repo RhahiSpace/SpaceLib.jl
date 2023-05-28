@@ -6,6 +6,7 @@ using SpaceLib
 using SpaceLib: @optionalprogress
 using UUIDs
 using ..PartModule
+using ..Constants: g
 import KRPC.Interface.SpaceCenter.Helpers as SCH
 import KRPC.Interface.SpaceCenter.RemoteTypes as SCR
 
