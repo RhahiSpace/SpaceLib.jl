@@ -59,7 +59,7 @@ function RealEngine(part::SCR.Part)
     rfm = getmodule(part, "ModuleEnginesRF")
     tfm = getmodule(part, "TestFlightReliability_EngineCycle")
     spool = spooltime(rfm)
-    ṁ = mass_flow_rate(engine)
+    ṁ = static_mass_flow_rate(engine)
     ṁ ≤ 0 && error("Invalid massflow for $name")
     return RealEngine(name, part, engine, rfm, tfm, spool, ṁ)
 end
@@ -131,13 +131,9 @@ end
 
 thrust(e::SingleEngine) = SCH.Thrust(e.engine)
 
-"""
-Expected burn time of the engine, in seconds.
-Devates from MJ value. 0.12 seconds to compute.
-"""
-function remaining_burn_time(sp::Spacecraft, e::SingleEngine; massflow::Real = e.massflow)
+function remaining_burn_time(e::SingleEngine; massflow::Real = e.massflow)
     ṁ = massflow
-    mₚ = effective_propellant_mass(sp, e.engine)
+    mₚ = effective_propellant_mass(e.engine)
     return t = mₚ / ṁ
 end
 
@@ -145,14 +141,19 @@ end
 Mass flow rate of engine.
 Deviates from MJ value.
 """
-function mass_flow_rate(engine::SCR.Engine)
+function static_mass_flow_rate(engine::SCR.Engine)
     thv = SCH.MaxVacuumThrust(engine)
     isp = SCH.VacuumSpecificImpulse(engine)
     return ṁ = thv / isp / g
 end
 
+function realtime_mass_flow_rate(e::SingleEngine)
+    value = SCH.GetFieldById(e.module_realfuel, "massFlowGui")
+    return parse(Float32, value)
+end
+
 """Available fuel mass, in kg. Computed from engine. 0.020 seconds to compute."""
-function effective_propellant_mass(sp::Spacecraft, engine::SCR.Engine)
+function effective_propellant_mass(engine::SCR.Engine)
     propellants = SCH.Propellants(engine)
     rmin = minimum(SCH.TotalResourceAvailable(p) / SCH.Ratio(p) for p in propellants)
     return mₚ = sum(rmin * SCH.Ratio(p) * density(SCH.Name(p)) for p in propellants)
