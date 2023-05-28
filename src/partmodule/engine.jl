@@ -12,35 +12,42 @@ export ignite!, shutdown!, thrust, wait_for_burnout
 
 abstract type AbstractEngine end
 abstract type SingleEngine <: AbstractEngine end
+abstract type RealSingleEngine <: SingleEngine end
+
+const g = 9.80665  # standard grav acceleration m/s²
 
 struct VanillaEngine <: SingleEngine
     name::String
     part::SCR.Part
     engine::SCR.Engine
+    massflow::Float64
 end
 
 function VanillaEngine(part::SCR.Part)
     name = SCH.Title(part)
+    ṁ = mass_flow_rate(engine)
     @debug "Indexing $name" _group=:index
-    VanillaEngine(name, part, SCH.Engine(part))
+    VanillaEngine(name, part, SCH.Engine(part), ṁ)
 end
 
-struct RealEngine <: SingleEngine
+struct RealEngine <: RealSingleEngine
     name::String
     part::SCR.Part
     engine::SCR.Engine
-    rfmodule::SCR.Module
-    tfmodule::SCR.Module
+    module_realfuel::SCR.Module
+    module_testflight::SCR.Module
     spooltime::Float64
+    massflow::Float64
 end
 
-struct RealSolidEngine <: SingleEngine
+struct RealSolidEngine <: RealSingleEngine
     name::String
     part::SCR.Part
     engine::SCR.Engine
-    rfmodule::SCR.Module
-    tfmodule::SCR.Module
+    module_realfuel::SCR.Module
+    module_testflight::SCR.Module
     spooltime::Float64
+    massflow::Float64
 end
 
 function RealEngine(part::SCR.Part)
@@ -50,7 +57,9 @@ function RealEngine(part::SCR.Part)
     rfm = getmodule(part, "ModuleEnginesRF")
     tfm = getmodule(part, "TestFlightReliability_EngineCycle")
     spool = spooltime(rfm)
-    return RealEngine(name, part, engine, rfm, tfm, spool)
+    ṁ = mass_flow_rate(engine)
+    ṁ ≤ 0 && error("Invalid massflow for $name")
+    return RealEngine(name, part, engine, rfm, tfm, spool, ṁ)
 end
 
 struct ClusterEngine{T<:SingleEngine}
@@ -71,7 +80,7 @@ function Base.show(io::IO, e::ClusterEngine)
 end
 
 function isstable(e::RealEngine)
-    value = SCH.GetFieldById(e.rfmodule, "propellantStatus")
+    value = SCH.GetFieldById(e.module_realfuel, "propellantStatus")
     i₁ = findfirst(status, '(')
     i₂ = findfirst(status, ')')
     return parse(Float64, value[i₁+1:i₂-3])
@@ -79,13 +88,13 @@ end
 isstable(e::VanillaEngine) = 100.0
 
 function runtime(e::RealEngine)
-    value = SCH.GetFieldById(e.tfmodule, "engineOperatingTime")
+    value = SCH.GetFieldById(e.module_testflight, "engineOperatingTime")
     return parse(Float64, value)
 end
 runtime(e::VanillaEngine) = 0.0
 
 # this function will be changed in the future to display full time in seconds.
-MTBF(e::RealEngine) = SCH.GetFieldById(e.rfmodule, "currentMTBF")
+MTBF(e::RealEngine) = SCH.GetFieldById(e.module_realfuel, "currentMTBF")
 MTBF(e::VanillaEngine) = "Inf"
 
 function spooltime(m::SCR.Module)
