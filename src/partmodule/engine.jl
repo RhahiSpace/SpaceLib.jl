@@ -14,6 +14,57 @@ export AbstractEngine, RealEngine, VanillaEngine
 export isstable, runtime, MTBF, spooltime
 export ignite!, shutdown!, thrust, wait_for_burnout
 
+struct StoredPropellant
+    name::String
+    ratio::Float32
+    density::Float32
+    capacity::Float64
+    loss::Float64
+    propellant::SCR.Propellant
+end
+
+struct EnginePropellant
+    resources::Vector{StoredPropellant}
+    massflow::Float32
+    residual_ratio::Float32
+    function EnginePropellant(engine::SCR.Engine, residual_ratio::Real)
+        @info "Indexing engine propellant" _group=:index
+        krpc_propellants = SCH.Propellants(engine)
+        resources = Vector{StoredPropellant}()
+        massflow = static_mass_flow_rate(engine)
+        for kp ∈ krpc_propellants
+            name = SCH.Name(kp)
+            ratio = SCH.Ratio(kp)
+            capacity = SCH.TotalResourceCapacity(kp)
+            loss = capacity * residual_ratio
+            p = StoredPropellant(name, ratio, density(name), capacity, loss, kp)
+            push!(resources, p)
+        end
+        new(resources, massflow, residual_ratio)
+    end
+end
+
+amount(p::StoredPropellant) = max(0,SCH.TotalResourceAvailable(p.propellant)-p.loss)
+
+"""Available fuel mass, in kg. Not completely accurate."""
+function effective_propellant_mass(ep::EnginePropellant)
+    length(ep.resources) == 0 && return 0.0
+    times = Vector{Float64}()
+    masses = Vector{Float64}()
+    for p ∈ ep.resources
+        effective_amount = amount(p)
+        push!(times, effective_amount/p.ratio)
+        push!(masses, effective_amount*p.density)
+    end
+    tmin = minimum(times)
+    sum = 0
+    for (i, m) ∈ enumerate(masses)
+        sum += tmin / times[i] * m
+    end
+    isnan(sum) && return 0.0
+    return sum
+end
+
 abstract type AbstractEngine end
 abstract type SingleEngine <: AbstractEngine end
 abstract type RealSingleEngine <: SingleEngine end
@@ -39,8 +90,7 @@ struct RealEngine <: RealSingleEngine
     module_realfuel::SCR.Module
     module_testflight::SCR.Module
     spooltime::Float32
-    massflow::Float32
-    residual::Float64
+    propellant::EnginePropellant
 end
 
 struct RealSolidEngine <: RealSingleEngine
@@ -50,7 +100,6 @@ struct RealSolidEngine <: RealSingleEngine
     module_realfuel::SCR.Module
     module_testflight::SCR.Module
     spooltime::Float32
-    massflow::Float32
 end
 
 function RealEngine(part::SCR.Part)
@@ -62,8 +111,8 @@ function RealEngine(part::SCR.Part)
     spool = spooltime(rfm)
     ṁ = static_mass_flow_rate(engine)
     ṁ ≤ 0 && error("Invalid massflow for $name")
-    r = residual(rfm)
-    return RealEngine(name, part, engine, rfm, tfm, spool, ṁ, r)
+    prop = EnginePropellant(engine, residual(rfm))
+    return RealEngine(name, part, engine, rfm, tfm, spool, prop)
 end
 
 struct ClusterEngine{T<:SingleEngine}
@@ -144,10 +193,10 @@ end
 thrust(e::SingleEngine) = SCH.Thrust(e.engine)
 
 function remaining_burn_time(e::SingleEngine;
-    massflow::Real = e.massflow,
+    massflow::Real = e.propellant.massflow,
 )
     ṁ = massflow
-    mₚ = effective_propellant_mass(e)
+    mₚ = effective_propellant_mass(e.propellant)
     return t = mₚ / ṁ
 end
 
