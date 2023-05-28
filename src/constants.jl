@@ -1,5 +1,6 @@
 module Constants
 
+using SpaceLib: SpaceCenter
 export density
 
 # physics

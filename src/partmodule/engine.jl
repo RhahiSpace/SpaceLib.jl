@@ -6,7 +6,7 @@ using SpaceLib
 using SpaceLib: @optionalprogress
 using UUIDs
 using ..PartModule
-using ..Constants: g
+using ..Constants: g, density
 import KRPC.Interface.SpaceCenter.Helpers as SCH
 import KRPC.Interface.SpaceCenter.RemoteTypes as SCR
 
@@ -129,4 +129,34 @@ function ignite!(sp::Spacecraft, e::SingleEngine; error=false, expected_thrust=0
 end
 
 thrust(e::SingleEngine) = SCH.Thrust(e.engine)
+
+"""
+Expected burn time of the engine, in seconds.
+Devates from MJ value. 0.12 seconds to compute.
+"""
+function remaining_burn_time(sp::Spacecraft, e::SingleEngine; massflow::Real = e.massflow)
+    ṁ = massflow
+    mₚ = effective_propellant_mass(sp, e.engine)
+    return t = mₚ / ṁ
+end
+
+"""
+Mass flow rate of engine.
+Deviates from MJ value.
+"""
+function mass_flow_rate(engine::SCR.Engine)
+    thv = SCH.MaxVacuumThrust(engine)
+    isp = SCH.VacuumSpecificImpulse(engine)
+    return ṁ = thv / isp / g
+end
+
+"""Available fuel mass, in kg. Computed from engine. 0.020 seconds to compute."""
+function effective_propellant_mass(sp::Spacecraft, engine::SCR.Engine)
+    propellants = SCH.Propellants(engine)
+    rmin = minimum(SCH.TotalResourceAvailable(p) / SCH.Ratio(p) for p in propellants)
+    return mₚ = sum(rmin * SCH.Ratio(p) * density(SCH.Name(p)) for p in propellants)
+end
+
+end
+
 end # module
