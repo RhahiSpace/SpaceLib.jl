@@ -97,7 +97,7 @@ end
 runtime(e::VanillaEngine) = 0.0
 
 # this function will be changed in the future to display full time in seconds.
-MTBF(e::RealEngine) = SCH.GetFieldById(e.module_realfuel, "currentMTBF")
+MTBF(e::RealEngine) = SCH.GetFieldById(e.module_testflight, "currentMTBF")
 MTBF(e::VanillaEngine) = "Inf"
 
 function spooltime(m::SCR.Module)
