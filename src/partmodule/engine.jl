@@ -22,7 +22,7 @@ struct VanillaEngine <: SingleEngine
     name::String
     part::SCR.Part
     engine::SCR.Engine
-    massflow::Float64
+    massflow::Float32
 end
 
 function VanillaEngine(part::SCR.Part)
@@ -38,8 +38,8 @@ struct RealEngine <: RealSingleEngine
     engine::SCR.Engine
     module_realfuel::SCR.Module
     module_testflight::SCR.Module
-    spooltime::Float64
-    massflow::Float64
+    spooltime::Float32
+    massflow::Float32
 end
 
 struct RealSolidEngine <: RealSingleEngine
@@ -48,8 +48,8 @@ struct RealSolidEngine <: RealSingleEngine
     engine::SCR.Engine
     module_realfuel::SCR.Module
     module_testflight::SCR.Module
-    spooltime::Float64
-    massflow::Float64
+    spooltime::Float32
+    massflow::Float32
 end
 
 function RealEngine(part::SCR.Part)
@@ -85,25 +85,26 @@ function isstable(e::RealEngine)
     value = SCH.GetFieldById(e.module_realfuel, "propellantStatus")
     i₁ = findfirst('(', value)
     i₂ = findfirst(')', value)
-    return parse(Float64, value[i₁+1:i₂-3])
+    return parse(Float32, value[i₁+1:i₂-3])
 end
-isstable(e::VanillaEngine) = 100.0
+isstable(e::VanillaEngine) = 100.0f0
 
 function runtime(e::RealEngine)
     value = SCH.GetFieldById(e.module_testflight, "engineOperatingTime")
-    return parse(Float64, value)
+    return parse(Float32, value)
 end
-runtime(e::VanillaEngine) = 0.0
+runtime(e::VanillaEngine) = 0.0f0
 
 # this function will be changed in the future to display full time in seconds.
+# example: 9.88m
 MTBF(e::RealEngine) = SCH.GetFieldById(e.module_testflight, "currentMTBF")
 MTBF(e::VanillaEngine) = "Inf"
 
 function spooltime(m::SCR.Module)
     value = SCH.GetFieldById(m, "effectiveSpoolUpTime")
-    return parse(Float64, value)
+    return parse(Float32, value)
 end
-spooltime(e::VanillaEngine) = 0.0
+spooltime(e::VanillaEngine) = 0.0f0
 
 function ignite!(e::SingleEngine)
     @info "Ignition commanded for $(e.name)" _group=:motor
