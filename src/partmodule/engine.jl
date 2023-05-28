@@ -27,7 +27,7 @@ end
 
 function VanillaEngine(part::SCR.Part)
     name = SCH.Title(part)
-    ṁ = mass_flow_rate(engine)
+    ṁ = static_mass_flow_rate(engine)
     @debug "Indexing $name" _group=:index
     VanillaEngine(name, part, SCH.Engine(part), ṁ)
 end
@@ -40,6 +40,7 @@ struct RealEngine <: RealSingleEngine
     module_testflight::SCR.Module
     spooltime::Float32
     massflow::Float32
+    residual::Float64
 end
 
 struct RealSolidEngine <: RealSingleEngine
@@ -61,7 +62,8 @@ function RealEngine(part::SCR.Part)
     spool = spooltime(rfm)
     ṁ = static_mass_flow_rate(engine)
     ṁ ≤ 0 && error("Invalid massflow for $name")
-    return RealEngine(name, part, engine, rfm, tfm, spool, ṁ)
+    r = residual(rfm)
+    return RealEngine(name, part, engine, rfm, tfm, spool, ṁ, r)
 end
 
 struct ClusterEngine{T<:SingleEngine}
@@ -94,6 +96,16 @@ function runtime(e::RealEngine)
     return parse(Float32, value)
 end
 runtime(e::VanillaEngine) = 0.0f0
+
+function residual(m::SCR.Module)
+    value = SCH.GetFieldById(m, "predictedMaximumResidualsGUI")
+    return parse(Float64,value)
+end
+
+function ignitions(e::SingleEngine)
+    value = SCH.GetFieldById(e.module_realfuel, "ignitions")
+    return parse(Int64,value)
+end
 
 # this function will be changed in the future to display full time in seconds.
 # example: 9.88m
@@ -131,16 +143,14 @@ end
 
 thrust(e::SingleEngine) = SCH.Thrust(e.engine)
 
-function remaining_burn_time(e::SingleEngine; massflow::Real = e.massflow)
+function remaining_burn_time(e::SingleEngine;
+    massflow::Real = e.massflow,
+)
     ṁ = massflow
-    mₚ = effective_propellant_mass(e.engine)
+    mₚ = effective_propellant_mass(e)
     return t = mₚ / ṁ
 end
 
-"""
-Mass flow rate of engine.
-Deviates from MJ value.
-"""
 function static_mass_flow_rate(engine::SCR.Engine)
     thv = SCH.MaxVacuumThrust(engine)
     isp = SCH.VacuumSpecificImpulse(engine)
@@ -152,11 +162,29 @@ function realtime_mass_flow_rate(e::SingleEngine)
     return parse(Float32, value)
 end
 
-"""Available fuel mass, in kg. Computed from engine. 0.020 seconds to compute."""
-function effective_propellant_mass(engine::SCR.Engine)
-    propellants = SCH.Propellants(engine)
-    rmin = minimum(SCH.TotalResourceAvailable(p) / SCH.Ratio(p) for p in propellants)
-    return mₚ = sum(rmin * SCH.Ratio(p) * density(SCH.Name(p)) for p in propellants)
+"""Available fuel mass, in kg. Not completely accurate."""
+function effective_propellant_mass(e::SingleEngine; residual=e.residual)
+    if !SCH.Active(e.engine) && ignitions(e) == 0
+        # if engine is off and has no ignitions left, it cannot use any fuel.
+        return 0
+    end
+    propellants = SCH.Propellants(e.engine)
+    length(propellants) == 0 && return 0
+    times = Vector{Float64}()
+    masses = Vector{Float64}()
+    for p in propellants
+        loss = SCH.TotalResourceCapacity(p)*residual
+        amount = SCH.TotalResourceAvailable(p)
+        eff_amount = max(0,amount-loss)
+        push!(times, eff_amount / SCH.Ratio(p))
+        push!(masses, eff_amount*density(SCH.Name(p)))
+    end
+    tmin = minimum(times)
+    sum = 0
+    for (i, m) ∈ enumerate(masses)
+        sum += tmin / times[i] * m
+    end
+    return sum
 end
 
 end
