@@ -1,8 +1,7 @@
-module Parts
+module Core
 
 using SpaceLib
 using ..PartModule
-
 export ProbeCore, destruct!
 
 struct ProbeCore <: Part
