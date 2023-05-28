@@ -1,8 +1,11 @@
 module Engine
 
 using ErrorTypes
+using ProgressLogging
 using SpaceLib
-using ..PartModule: getmodule
+using SpaceLib: @optionalprogress
+using UUIDs
+using ..PartModule
 import KRPC.Interface.SpaceCenter.Helpers as SCH
 import KRPC.Interface.SpaceCenter.RemoteTypes as SCR
 
