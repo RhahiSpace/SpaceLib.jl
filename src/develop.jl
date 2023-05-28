@@ -56,9 +56,10 @@ function list_fields(part::SCR.Part)
             continue
         end
         fields = SCH.Fields(m)
+        byid = SCH.FieldsById(m) |> keys |> collect
         println("Module[$(length(fields))]: ", name)
-        for f ∈ fields
-            println("  -> ", f)
+        for (i, f) ∈ enumerate(fields)
+            println("  -> ", f, " (id: $(byid[i]))")
         end
     end
 end
