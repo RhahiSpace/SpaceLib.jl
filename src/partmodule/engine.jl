@@ -217,8 +217,8 @@ end
 @enum BurnoutReason INTERRUPT BURNOUT MARGIN TIMEOUT ENGINEOFF
 
 function wait_for_burnout(sp::Spacecraft, e::SingleEngine;
-    margin::Real=0,
-    timeout::Real=0,
+    margin::Union{Real,Nothing}=nothing,
+    timeout::Real=-1,
     period::Real=0.5,
     progress::Bool=false,
     name::String=first(e.name, 10),
@@ -259,7 +259,7 @@ function wait_for_burnout(sp::Spacecraft, e::SingleEngine;
                     fraction = min(1, (τ₀-τ) / τ₀)
                     @info ProgressLogging.Progress(pid1, fraction; parentid=parentid, name=name, done=false) _group=:ProgressLogging
                 end
-                if margin > 0 && τ ≤ margin
+                if !isnothing(margin) && τ ≤ margin
                     @info "Burnout margin has been reached for $(e.name)" _group=:motor burntime=now-t₀ margin
                     return MARGIN
                 end
