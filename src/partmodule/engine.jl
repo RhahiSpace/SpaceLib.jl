@@ -177,9 +177,12 @@ function shutdown!(e::SingleEngine)
     SCH.Active!(e.engine, false)
 end
 
-function ignite!(sp::Spacecraft, e::SingleEngine; error=false, expected_thrust=0)
+"Ignite an engine and confirm its success"
+function ignite!(sp::Spacecraft, e::SingleEngine;
+    error=false, expected_thrust=0, name=nothing, parentid=ProgressLogging.ROOTID,
+)
     ignite!(e)
-    delay(sp.ts, e.spooltime)
+    delay(sp.ts, e.spooltime, name; parentid=parentid)
     th = thrust(e)
     if th > 0 && th ≥ expected_thrust
         @info "Ignition confirmed for $(e.name)" _group=:motor
