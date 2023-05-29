@@ -28,7 +28,7 @@ struct EnginePropellant
     massflow::Float32
     residual_ratio::Float32
     function EnginePropellant(engine::SCR.Engine, residual_ratio::Real)
-        @info "Indexing engine propellant" _group=:index
+        @debug "Indexing engine propellant" _group=:index
         krpc_propellants = SCH.Propellants(engine)
         resources = Vector{StoredPropellant}()
         massflow = static_mass_flow_rate(engine)
