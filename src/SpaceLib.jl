@@ -14,7 +14,7 @@ import KRPC.Interface.KRPC.Helpers as KH
 import Base: close, show, isopen, ==, notify, acquire, release, wait, reset
 
 # modules
-export Develop, ReferenceFrame
+export Develop, ReferenceFrame, Constants
 export SC, SCR, SCH, KK, KR, KH
 
 # workarounds.jl
@@ -38,7 +38,7 @@ export add_active_vessel!, remove_active_vessel!, remove_vessel!
 export subscribe, disable, enable
 
 # parts and modules
-export PartModule, Parts, Decoupler, Engine, Chute
+export PartModule, Decoupler, Engine, Parachute, CommandModule
 
 # common functions
 export acquire, release, @trace
@@ -62,7 +62,7 @@ include("stage.jl")
 include("partmodule/partmodule.jl")
 include("partmodule/resources.jl")
 include("partmodule/engine.jl")
-include("partmodule/core.jl")
+include("partmodule/command.jl")
 include("partmodule/decoupler.jl")
 include("partmodule/parachute.jl")
 

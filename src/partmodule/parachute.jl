@@ -1,4 +1,4 @@
-module Chute
+module Parachute
 
 using SpaceLib
 using ..PartModule
