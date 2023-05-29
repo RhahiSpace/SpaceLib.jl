@@ -4,10 +4,10 @@
 Stage the spacecraft and wait 0.5625 seconds to give KSP time between staging events.
 """
 function stage!(sp::Spacecraft)
-    @info "Stage commanded" _group=:stage
     ctrl = SCH.Control(sp.ves)
     acquire(sp, :stage)
     try
+        @info "Stage commanded" _group=:stage
         vessels = SCH.ActivateNextStage(ctrl)
         if isa(vessels, Vector{SCR.Vessel}) && length(vessels) > 0
             @info "Stage separation confirmed" _group=:stage
