@@ -211,31 +211,73 @@ function realtime_mass_flow_rate(e::SingleEngine)
     return parse(Float32, value)
 end
 
-"""Available fuel mass, in kg. Not completely accurate."""
-function effective_propellant_mass(e::SingleEngine; residual=e.residual)
-    if !SCH.Active(e.engine) && ignitions(e) == 0
-        # if engine is off and has no ignitions left, it cannot use any fuel.
-        return 0
-    end
-    propellants = SCH.Propellants(e.engine)
-    length(propellants) == 0 && return 0
-    times = Vector{Float64}()
-    masses = Vector{Float64}()
-    for p in propellants
-        loss = SCH.TotalResourceCapacity(p)*residual
-        amount = SCH.TotalResourceAvailable(p)
-        eff_amount = max(0,amount-loss)
-        push!(times, eff_amount / SCH.Ratio(p))
-        push!(masses, eff_amount*density(SCH.Name(p)))
-    end
-    tmin = minimum(times)
-    sum = 0
-    for (i, m) ∈ enumerate(masses)
-        sum += tmin / times[i] * m
-    end
-    return sum
-end
+@enum BurnoutReason INTERRUPT BURNOUT MARGIN TIMEOUT ENGINEOFF
 
+function wait_for_burnout(sp::Spacecraft, e::SingleEngine;
+    margin::Real=0,
+    timeout::Real=0,
+    period::Real=0.5,
+    progress::Bool=false,
+    name::String=first(e.name, 10),
+    parentid::Base.UUID=ProgressLogging.ROOTID,
+    interrupt::Union{EventCondition,Nothing}=nothing,
+    allow_engine_shutoff=true,
+)
+    t₀ = sp.ts.time
+    τ₀ = remaining_burn_time(e)
+    τ_prev = τ₀
+    e_prev = SCH.Active(e.engine)
+    pid1 = uuid4()
+    pid2 = uuid4()
+    if τ₀ == 0
+        @warn "Trying to wait for engine with no remaining burn time $(e.name)" _group=:motor
+    end
+    periodic_subscribe(sp.ts, period) do clock
+        try
+            for now = clock
+                if isset(interrupt)
+                    @info "Interrupted burnout wait of $(e.name)" _group=:motor burntime=now-t₀
+                    return INTERRUPT
+                end
+                τ = remaining_burn_time(e)
+                if τ != τ₀ && τ == τ_prev
+                    @info "Burnout detected (no massflow) for $(e.name)" _group=:motor burntime=now-t₀
+                    return BURNOUT
+                end
+                if !allow_engine_shutoff
+                    engine_status = SCH.Active(e.engine)
+                    if e_prev && !engine_status
+                        @info "Burnout detected (engine off) for $(e.name)" _group=:motor burntime=now-t₀
+                        return BURNOUT
+                    end
+                    e_prev = engine_status
+                end
+                if progress
+                    fraction = min(1, (τ₀-τ) / τ₀)
+                    @info ProgressLogging.Progress(pid1, fraction; parentid=parentid, name=name, done=false) _group=:ProgressLogging
+                end
+                if margin > 0 && τ ≤ margin
+                    @info "Burnout margin has been reached for $(e.name)" _group=:motor burntime=now-t₀ margin
+                    return MARGIN
+                end
+                if timeout > 0
+                    if progress
+                        fraction = min(1, (now - t₀) / timeout)
+                        @info ProgressLogging.Progress(pid2, fraction; parentid=pid1, name="↱timeout", done=false) _group=:ProgressLogging
+                    end
+                    if (now - t₀) ≥ timeout
+                        @info "Burnout timeout has been reached for $(e.name)" _group=:motor burntime=now-t₀
+                        return TIMEOUT
+                    end
+                end
+                τ_prev = τ
+                yield()
+            end
+        finally
+            progress && @info ProgressLogging.Progress(pid1; done=true) _group=:ProgressLogging
+            progress && timeout > 0 && @info ProgressLogging.Progress(pid2; done=true) _group=:ProgressLogging
+        end
+    end
 end
 
 end # module
