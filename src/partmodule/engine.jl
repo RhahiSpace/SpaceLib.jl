@@ -23,6 +23,8 @@ struct StoredPropellant
     propellant::SCR.Propellant
 end
 
+Base.show(io::IO, res::StoredPropellant) = print(io, "StoredPropellant($(res.name), ratio=$(res.ratio), ρ=$(res.density))")
+
 struct EnginePropellant
     resources::Vector{StoredPropellant}
     massflow::Float32
@@ -43,6 +45,8 @@ struct EnginePropellant
         new(resources, massflow, residual_ratio)
     end
 end
+
+Base.show(io::IO, ep::EnginePropellant) = print(io, "EnginePropellant($(length(ep.resources)) resources, ṁ=$(ep.massflow), residual=$(ep.residual_ratio)")
 
 amount(p::StoredPropellant) = max(0,SCH.TotalResourceAvailable(p.propellant)-p.loss)
 
@@ -119,18 +123,9 @@ struct ClusterEngine{T<:SingleEngine}
     engines::Vector{T}
 end
 
-function Base.show(io::IO, e::VanillaEngine)
-    print(io, "VanillaEngine ($(e.name))")
-end
-
-function Base.show(io::IO, e::RealEngine)
-    print(io, "RealEngine ($(e.name))")
-end
-
-function Base.show(io::IO, e::ClusterEngine)
-    num = length(e.engines)
-    print(io, "ClusterEngine ($num engines)")
-end
+Base.show(io::IO, e::VanillaEngine) = print(io, "VanillaEngine ($(e.name))")
+Base.show(io::IO, e::RealEngine) = print(io, "RealEngine ($(e.name))")
+Base.show(io::IO, e::ClusterEngine) = print(io, "ClusterEngine ($(length(e.engines)) engines)")
 
 function isstable(e::RealEngine)
     value = SCH.GetFieldById(e.module_realfuel, "propellantStatus")
