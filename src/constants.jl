@@ -27,6 +27,7 @@ const RO_DENSITY = Dict{String,Float32}(
     "Kerosene" => 0.82,
     "LqdAmmonia" => 0.7021,
     "LqdOxygen" => 1.1409999,
+    "NGNC" => 1.5999999,
     "Nitrogen" => 0.001251,
     "SoundingPayload" => 0.5,
     "Water" => 1.0,
