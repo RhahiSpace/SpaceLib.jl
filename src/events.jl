@@ -24,8 +24,14 @@ function event!(sp::Spacecraft, sym::Symbol;
     event = nothing
     acquire(sp, :events) do
         if sym ∉ keys(sp.events)
-            event = EventCondition(active, value)
-            sp.events[sym] = event
+            if create
+                @debug "Event $sym has been created" _group=:event
+                event = EventCondition(active, value)
+                sp.events[sym] = event
+            else
+                @error "Event $sym not found" _group=:event
+                error(KeyError)
+            end
         else
             event = sp.events[sym]
             event.active[] = active
@@ -57,6 +63,13 @@ function event(sp::Spacecraft, sym::Symbol; create::Bool=false)
     acquire(sp, :events) do
         if sym ∈ keys(sp.events)
             event = sp.events[sym]
+        elseif create
+            @debug "Event $sym has been created" _group=:event
+            event = EventCondition()
+            sp.events[sym] = event
+        else
+            @error "Event $sym not found" _group=:event
+            error(KeyError)
         end
     end
     return event
