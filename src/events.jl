@@ -32,7 +32,6 @@ function event!(sp::Spacecraft, sym::Symbol;
             event.value[] = value
         end
     end
-    @assert !isnothing(event)
     return event
 end
 
