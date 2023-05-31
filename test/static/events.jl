@@ -8,9 +8,9 @@ include("../setup_mock.jl")
     notify(e0)
     @test isset(e0)
 
-    # event creation with setevent
+    # event creation with event!
     @test length(sp.events) == 1
-    e1 = setevent(sp, :e1)
+    e1 = event!(sp, :e1)
     @test length(sp.events) == 2
     @test !isset(e1)
     @test value(e1) |> isnothing
@@ -37,9 +37,9 @@ include("../setup_mock.jl")
     @test fetch(task) == "value"
 
     # event retrieval and setting
-    _e2 = getevent(sp, :e2)
+    _e2 = event(sp, :e2)
     @test e2 === _e2
-    setevent(sp, _e2; active=true)
+    event!(sp, _e2; active=true)
     _e2 = sp.events[:e2]
     @test isset(_e2)
     @test value(_e2) |> isnothing

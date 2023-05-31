@@ -2,10 +2,10 @@ isset(event::EventCondition) = event.active[]
 value(event::EventCondition) = event.value[]
 isset(event::Nothing) = false
 
-Base.reset(event::EventCondition) = setevent(event; active=false, value=nothing)
+Base.reset(event::EventCondition) = event!(event; active=false, value=nothing)
 
 """Set state of an EventCondition. Not multi-thread safe."""
-function setevent(event::EventCondition;
+function event!(event::EventCondition;
     active::Bool=false, value::Any=nothing
 )
     # not MT safe.
@@ -18,8 +18,8 @@ end
 Create or modify the spacecraft's EventCondition without notifying it.
 Locks spacecraft's event storage during access.
 """
-function setevent(sp::Spacecraft, sym::Symbol;
-    active::Bool=false, value::Any=nothing
+function event!(sp::Spacecraft, sym::Symbol;
+    active::Bool=false, value::Any=nothing, create::Bool=true
 )
     event = nothing
     acquire(sp, :events) do
@@ -40,7 +40,7 @@ end
 Set state of an EventCondition without notifying it.
 Locks spacecraft's event storage during access.
 """
-function setevent(sp::Spacecraft, event::EventCondition;
+function event!(sp::Spacecraft, event::EventCondition;
     active::Bool=false, value::Any=nothing
 )
     acquire(sp, :events) do
@@ -51,10 +51,9 @@ function setevent(sp::Spacecraft, event::EventCondition;
 end
 
 """
-Retrieve event, but don't create it.
-To create it if it doesn't exist, use `setevent`.
+Retrieve or create an event.
 """
-function getevent(sp::Spacecraft, sym::Symbol)
+function event(sp::Spacecraft, sym::Symbol; create::Bool=false)
     event = nothing
     acquire(sp, :events) do
         if sym ∈ keys(sp.events)
@@ -67,7 +66,7 @@ end
 function wait(sp::Spacecraft, sym::Symbol;
     retroactive::Bool=true, once::Bool=false
 )
-    setevent(sp, sym)
+    event!(sp, sym)
     event::EventCondition = sp.events[sym]
     if retroactive && event.active[]
         once ? wait(sp, :never) : return event.value[]
@@ -78,7 +77,7 @@ end
 function notify(event::EventCondition, value=nothing;
     name::String="Unknown", all::Bool=true, error::Bool=false
 )
-    setevent(event; active=true, value=value)
+    event!(event; active=true, value=value)
     count = notify(event.cond, value; all=all, error=error)
     @debug "`$name` has notified $count listeners" _group=:event
     return count
@@ -87,7 +86,7 @@ end
 function notify(sp::Spacecraft, sym::Symbol, value=nothing;
     name::String="", all::Bool=true, error::Bool=false
 )
-    event = setevent(sp, sym; active=true, value=value)
+    event = event!(sp, sym; active=true, value=value)
     count = notify(event.cond, value; all=all, error=error)
     @debug "`$name` has notified $count listeners via $sym" _group=:event
     return count
@@ -96,7 +95,7 @@ end
 function notify(sp::Spacecraft, event::EventCondition, value=nothing;
     name::String="", all::Bool=true, error::Bool=false
 )
-    event = setevent(sp, event; active=true, value=value)
+    event = event!(sp, event; active=true, value=value)
     count = notify(event.cond, value; all=all, error=error)
     @debug "`$name` has notified $count listeners" _group=:event
     return count
