@@ -1,6 +1,7 @@
 isset(event::EventCondition) = event.active[]
 value(event::EventCondition) = event.value[]
 isset(event::Nothing) = false
+isset(sp::Spacecraft, sym::Symbol) = sym ∈ keys(sp.events) ? isset(sp.events[sym]) : false
 
 Base.reset(event::EventCondition) = event!(event; active=false, value=nothing)
 
