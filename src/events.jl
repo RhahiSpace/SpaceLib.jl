@@ -76,13 +76,20 @@ function event(sp::Spacecraft, sym::Symbol; create::Bool=false)
     return event
 end
 
+"""
+Wait for EventCondition.
+
+If once, do not return if the event has been set already.
+If retroactive, then treat it as a level-triggered source and return previously set value.
+"""
 function wait(sp::Spacecraft, sym::Symbol;
     retroactive::Bool=true, once::Bool=false
 )
     event!(sp, sym)
     event::EventCondition = sp.events[sym]
-    if retroactive && event.active[]
-        once ? wait(sp, :never) : return event.value[]
+    if event.active[]
+        once && return wait(sp, :never)
+        retroactive && return event.value[]
     end
     Base.wait(event.cond)
 end
